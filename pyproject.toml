@@ -1,0 +1,17 @@
+[project]
+name = "asr"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiofiles>=24.1.0",
+    "fastapi>=0.116.1",
+    "funasr>=1.2.7",
+    "pydantic>=2.11.7",
+    "redis>=6.4.0",
+    "torch>=2.8.0",
+    "torchaudio>=2.8.0",
+    "typer>=0.17.4",
+    "uvicorn>=0.35.0",
+]

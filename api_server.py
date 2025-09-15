@@ -1,0 +1,165 @@
+import os
+import uuid
+from typing import Optional
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel
+import aiofiles
+from redis import asyncio as aioredis
+import requests
+from urllib.parse import urlparse
+
+app = FastAPI(title="FunASR API Server")
+
+# Redis配置
+REDIS_HOST = "192.168.5.127"
+REDIS_PORT = 32163
+REDIS_DB = 1
+
+# 音频文件存储目录
+AUDIO_DIR = "audio"
+os.makedirs(AUDIO_DIR, exist_ok=True)
+
+# Redis客户端
+redis_client = aioredis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    db=REDIS_DB,
+    decode_responses=True,
+    password="xbt123456"
+)
+
+
+class AudioRecognitionRequest(BaseModel):
+    customer_id: int # patientId
+    appointment_id: int
+    timestamp: int # seconds
+    file: str  # 可以是本地文件路径或URL
+
+
+class TaskResponse(BaseModel):
+    task_id: str
+    message: str
+
+
+class TaskStatus(BaseModel):
+    task_id: str
+    status: str
+    appointment_id: int
+    timestamp: int # seconds
+    result: Optional[str] = None
+    speech: Optional[str] = None
+
+
+def is_valid_url(url: str) -> bool:
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
+
+
+async def download_file(url: str, save_path: str):
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        async with aiofiles.open(save_path, 'wb') as f:
+            await f.write(response.content)
+        return True
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to download file: {str(e)}")
+
+
+@app.post("/recognize", response_model=TaskResponse)
+async def recognize_audio(request: AudioRecognitionRequest):
+    # task_id = str(uuid.uuid4())
+    task_id = str(request.customer_id)
+    appointment_id = str(request.appointment_id)
+    file_path = request.file
+    timestamp = request.timestamp
+
+    if is_valid_url(file_path):
+        # 处理URL
+        file_name = os.path.basename(urlparse(file_path).path) or f"{task_id}.audio"
+        save_path = os.path.join(AUDIO_DIR, file_name)
+        await download_file(file_path, save_path)
+        file_path = save_path
+    elif not os.path.isfile(file_path):
+        raise HTTPException(status_code=400, detail="File not found")
+
+    # 将任务添加到Redis队列
+    task_data = {
+        "task_id": task_id,
+        "appointment_id": appointment_id,
+        "timestamp": timestamp,
+        "file_path": file_path,
+        "status": "pending"
+    }
+
+    key = f"funasr:{task_id}:{appointment_id}"
+    await redis_client.hmset(key, task_data)
+    await redis_client.lpush("asr_tasks", key)
+
+    return TaskResponse(
+        task_id=key,
+        message="Task submitted successfully"
+    )
+
+
+@app.get("/status/{task_id}", response_model=TaskStatus)
+async def get_task_status(task_id: str):
+    task_data = await redis_client.hgetall(f"funasrtask:{task_id}")
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return TaskStatus(
+        task_id=task_id,
+        status=task_data.get("status", "unknown"),
+        result=task_data.get("result"),
+        speech=task_data.get("speech")
+    )
+
+@app.get("/statusList/{task_id}", response_model=list[TaskStatus])
+async def get_task_list(task_id: str):
+    fuzzy_key = f"funasr:{task_id}:*"
+    keys = await redis_client.keys(fuzzy_key)
+    if not keys:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    res=[]
+    for key in keys :
+        task_data = await redis_client.hgetall(key)
+        res.append(
+            TaskStatus(
+                task_id=task_id,
+                appointment_id=task_data.get("appointment_id"),
+                timestamp=task_data.get("timestamp"),
+                status=task_data.get("status", "unknown"),
+                result=task_data.get("result"),
+                speech=task_data.get("speech")
+            )
+        )
+
+    return res
+
+
+@app.get("/status/{task_id}/{appointment_id}", response_model=TaskStatus)
+async def get_task(task_id: str, appointment_id: str):
+    key = f"funasr:{task_id}:{appointment_id}"
+    task_data = await redis_client.hgetall(key)
+    if not task_data:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return TaskStatus(
+        task_id=task_id,
+        appointment_id=appointment_id,
+        timestamp=task_data.get("timestamp"),
+        status=task_data.get("status", "unknown"),
+        result=task_data.get("result"),
+        speech=task_data.get("speech")
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
