@@ -1,10 +1,12 @@
 
 
 ### 下载模型到本地
+```
 modelscope download --model iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch  --local_dir ./speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch
 modelscope download --model iic/speech_fsmn_vad_zh-cn-16k-common-pytorch  --local_dir ./speech_fsmn_vad_zh-cn-16k-common-pytorch
 modelscope download --model iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch  --local_dir ./punc_ct-transformer_zh-cn-common-vocab272727-pytorch
 modelscope download --model iic/speech_campplus_sv_zh-cn_16k-common  --local_dir ./speech_campplus_sv_zh-cn_16k-common
+```
 
 ### 对话prompt
 目标:
