@@ -98,7 +98,7 @@ def local():
 
         speech = json.dumps(speech_list, ensure_ascii=False)
         json_data = dify_post("app-H4YrU42V6PPTDXLriarazedD", "chatContent", "user_123", speech)
-        messages = parse_dify_any(json_data["data"]["outputs"]["chatContent"])
+        parse_dify_any(json_data["data"]["outputs"]["chatContent"])
         
 
 if __name__ == "__main__":

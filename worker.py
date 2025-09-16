@@ -37,23 +37,40 @@ def dify_post(token, var_name, user, content):
     }
     data = {
         "inputs": {f"{var_name}": content},
-        "response_mode": "blocking",
+        "response_mode": "streaming",
         "user": user
     }
-    r = requests.post(url=url,json=data,headers=headers)
-    if r.status_code == 200:
-        print("请求成功！")
-        json_data = r.json()
-        # chatContent = json_data["data"]["outputs"]["chatContent"]
-        print(json_data)
-        return json_data
-    else:
-        print(f"请求失败，状态码：{r.status_code}")
+    try:
+        r = requests.post(url=url,json=data,headers=headers,stream=True)
+        if r.status_code == 200:
+            print("请求成功！")
+        
+            for line in r.iter_lines():
+                if line:
+                    # SSE 协议中，数据行以 "data: " 开头 [1]
+                    if line.startswith(b"data:"):
+                        # 提取 JSON 字符串
+                        json_str = line.decode('utf-8')[5:].strip()
+                        data = json.loads(json_str)
+                        # 根据事件类型进行条件处理
+                        event_type = data.get("event")
+                        # print(event_type)
+                        # 处理文本片段事件
+                        if (event_type == "workflow_finished") :
+                            return data
+
+            return None
+        else:
+            print(f"请求失败，状态码：{r.status_code}")
+            print(r.text)
+            return None
+    except requests.RequestException as e:
+        print(f"请求失败，错误：{e}")
         return None
     
 def parse_dify_any(outputs):
     if (outputs is None):
-        return
+        return None
 
     # 进一步解析outputs中的JSON数组
     try:
@@ -96,7 +113,7 @@ def download_model():
 
 
 def process_audio(key: str, file_path: str, model):
-    """处理单个音频文件"""
+    """处理scp文件"""
     try:
         # 更新任务状态为处理中
         redis_client.hset(key, "status", "processing")
@@ -107,30 +124,70 @@ def process_audio(key: str, file_path: str, model):
         # print(text)
         # text_result = text
 
-        speech_list = result[0]["sentence_info"]
-        for item in speech_list:
-            del item["timestamp"]
-        # speech = json.dumps(speech_list, indent=2, ensure_ascii=False)
-        speech = json.dumps(speech_list, ensure_ascii=False)
-        # 解析对话
-        json_data = dify_post("app-H4YrU42V6PPTDXLriarazedD", "chatContent", key, speech)
-        messages = parse_dify_any(json_data["data"]["outputs"]["chatContent"])
-        # 分析对话
-        json_data_ana = dify_post("app-TlgE19fpgxhpQB9yOA3RBfj8", "chatContent", key, speech)
-        text_result = parse_dify_any(json_data_ana["data"]["outputs"]["text"])
+        messages = []
+        for stage in result:
+            speech_list = stage["sentence_info"]
+            for item in speech_list:
+                del item["timestamp"]
 
-        # 更新任务状态和结果
+            # speech = json.dumps(speech_list, indent=2, ensure_ascii=False)
+            speech = json.dumps(speech_list, ensure_ascii=False)
+            # print(speech)
+            # dify解析对话，优化输出
+            json_data = dify_post("app-H4YrU42V6PPTDXLriarazedD", "chatContent", key, speech)
+            # 解析输出为json
+            data_str = json_data["data"]["outputs"]["chatContent"]
+            print(data_str)
+            msg_json = parse_dify_any(data_str)
+            if (msg_json is not None):
+                messages.append(msg_json)
+
+        # 更新任务对话解析结果
         redis_client.hmset(key, {
             "status": "completed",
-            "result": json.dumps(text_result,ensure_ascii=False),
             "speech": json.dumps(messages,ensure_ascii=False)
         })
 
-        print(f"Task {key} completed successfully")
+        analyze(key)
+
         return True
     except Exception as e:
         print(f"Error processing task {key}: {str(e)}")
         redis_client.hmset(key, {
+            "status": "failed",
+            "result": str(e)
+        })
+        return False
+    
+def analyze(key: str):
+    task_data = redis_client.hgetall(key)
+    task_id=task_data.get("task_id")
+    ana_key = f"ana:{task_id}"
+    try:
+        # 获取历史所有对话    
+        fuzzy_key = f"funasr:{task_id}:*"
+        keys = redis_client.keys(fuzzy_key)
+        all_speech=[]
+        for sub_key in keys :
+            sub_task_data = redis_client.hgetall(sub_key)
+            all_speech.append(sub_task_data.get("speech"))
+
+        # 分析对话
+        json_data_ana = dify_post("app-TlgE19fpgxhpQB9yOA3RBfj8", "chatContent", key, json.dumps(all_speech, ensure_ascii=False))
+        ana_str = json_data_ana["data"]["outputs"]["text"]
+        print(ana_str)
+        text_result = parse_dify_any(ana_str)
+
+        # 更新分析结果
+        redis_client.hmset(ana_key, {
+            "status": "completed",
+            "result": json.dumps(text_result,ensure_ascii=False)
+        })
+
+        print(f"Task {ana_key} completed successfully")
+    except Exception as e:
+        print(f"Error processing task {ana_key}: {str(e)}")
+        redis_client.hmset(ana_key, {
             "status": "failed",
             "result": str(e)
         })
@@ -166,7 +223,7 @@ def start_worker():
                 continue
 
             # 提交任务到线程池
-            executor.submit(process_audio, key, task_data['file_path'], model)
+            executor.submit(process_audio, key, task_data['scp_file'], model)
 
 
 @app.command()
