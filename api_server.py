@@ -44,15 +44,16 @@ class TaskResponse(BaseModel):
     task_id: str
     message: str
 
-
 class TaskStatus(BaseModel):
     task_id: str
     status: str
-    appointment_id: int
+    appointment_id: Optional[int] = None
     files: Optional[str] = None
-    result: Optional[str] = None
     speech: Optional[str] = None
 
+class AnalyzeStatus(BaseModel):
+    status: str
+    result: Optional[str] = None
 
 def is_valid_url(url: str) -> bool:
     try:
@@ -115,13 +116,6 @@ async def recognize_audio(request: AudioRecognitionRequest):
     if (request.parse is True):
         await redis_client.lpush("asr_tasks", key)
 
-    ana_key = f"ana:{task_id}"
-    ana_data = {
-        "task_id": task_id,
-        "status": status
-    }
-    await redis_client.hmset(ana_key, ana_data)
-
     return TaskResponse(
         task_id=key,
         message="Task submitted successfully"
@@ -165,17 +159,28 @@ async def get_task(task_id: str, appointment_id: str):
         speech=task_data.get("speech")
     )
 
-@app.get("/analyze/{task_id}", response_model=TaskStatus)
-async def get_analyze(task_id: str):
+@app.get("/getAnalyzeStatus/{task_id}", response_model=AnalyzeStatus)
+async def get_analyze_status(task_id: str):
     key = f"ana:{task_id}"
     task_data = await redis_client.hgetall(key)
     if not task_data:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    return TaskStatus(
-        task_id=task_id,
+    return AnalyzeStatus(
         status=task_data.get("status", "unknown"),
         result=task_data.get("result")
+    )
+
+@app.get("/analyze/{task_id}", response_model=TaskResponse)
+async def analyze(task_id: str):
+    key = f"ana:{task_id}"
+    
+    # 更新任务状态为排队中
+    await redis_client.hset(key, "status", "pending")
+    await redis_client.lpush("asr_tasks", key)
+    return TaskResponse(
+        task_id=key,
+        message="Task submitted successfully"
     )
 
 if __name__ == "__main__":
