@@ -1,7 +1,7 @@
 from funasr import AutoModel
 from funasr.utils.postprocess_utils import rich_transcription_postprocess
 import json
-from utils import dify_post, parse_dify_any
+from dify import dify_post, parse_dify_any
 
 def test():
     output_dir = "./results"

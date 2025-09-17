@@ -4,7 +4,7 @@ import redis
 import json
 from concurrent.futures import ThreadPoolExecutor
 from funasr import AutoModel
-from utils import dify_post, parse_dify_any
+from dify import dify_post, parse_dify_any
 # from funasr.utils.postprocess_utils import rich_transcription_postprocess
 
 app = typer.Typer()
@@ -75,10 +75,11 @@ def process_audio(key: str, file_path: str, model):
 
             # speech = json.dumps(speech_list, indent=2, ensure_ascii=False)
             speech = json.dumps(speech_list, ensure_ascii=False)
-            # print(speech)
+            print(speech)
             # dify解析对话，优化输出
             json_data = dify_post("app-H4YrU42V6PPTDXLriarazedD", "chatContent", key, speech)
             # 解析输出为json
+            print(json_data)
             data_str = json_data["data"]["outputs"]["chatContent"]
             print(data_str)
             msg_json = parse_dify_any(data_str)
@@ -111,21 +112,30 @@ def analyze(task_id: str):
         keys = redis_client.keys(fuzzy_key)
         all_speech=[]
         for sub_key in keys :
+            print(sub_key)
             sub_task_data = redis_client.hgetall(sub_key)
-            all_speech.append(sub_task_data.get("speech"))
+            speech_list = json.loads(sub_task_data.get("speech"))
+            all_speech.extend(speech_list)
+
+        if (len(all_speech) == 0):
+            redis_client.hmset(key, {
+                "status": "failed",
+                "result": "lack of information"
+            })
+            return False
 
         # 分析对话
         json_data_ana = dify_post("app-TlgE19fpgxhpQB9yOA3RBfj8", "chatContent", key, json.dumps(all_speech, ensure_ascii=False))
+        print(json_data_ana)
         ana_str = json_data_ana["data"]["outputs"]["text"]
         print(ana_str)
         text_result = parse_dify_any(ana_str)
 
         # 更新分析结果
-        res = {
+        redis_client.hmset(key, {
             "status": "completed",
             "result": json.dumps(text_result,ensure_ascii=False)
-        }
-        redis_client.hmset(key, res)
+        })
         return True
     except Exception as e:
         print(f"Error processing analyze {key}: {str(e)}")

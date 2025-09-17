@@ -22,13 +22,13 @@ def dify_post(token, var_name, user, content):
                     if line.startswith(b"data:"):
                         # 提取 JSON 字符串
                         json_str = line.decode('utf-8')[5:].strip()
-                        data = json.loads(json_str)
+                        dify_data = json.loads(json_str)
                         # 根据事件类型进行条件处理
-                        event_type = data.get("event")
-                        # print(event_type)
+                        event_type = dify_data.get("event")
+                        print(event_type)
                         # 处理文本片段事件
                         if (event_type == "workflow_finished") :
-                            return data
+                            return dify_data
 
             return None
         else:

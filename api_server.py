@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.encoders import jsonable_encoder
@@ -8,13 +9,35 @@ from redis import asyncio as aioredis
 import requests
 import json
 from urllib.parse import urlparse
+from contextlib import asynccontextmanager
+# import signal
+from consul import register_service, deregister_service
 
-app = FastAPI(title="FunASR API Server")
+# Lifespan events for FastAPI
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Register with Consul
+    service_port = 8000
+    service_name = 'funasr-api-server'
+    register_service(service_name, service_port)
+    
+    yield
+    
+    # Shutdown: Deregister from Consul
+    deregister_service()
+
+# Create FastAPI app with lifespan events
+app = FastAPI(title="FunASR API Server", lifespan=lifespan, root_path="/funasr-api-server")
+
+# Register signal handlers
+# signal.signal(signal.SIGINT, handle_shutdown)
+# signal.signal(signal.SIGTERM, handle_shutdown)
 
 # Redis配置
 REDIS_HOST = "192.168.5.127"
 REDIS_PORT = 32163
 REDIS_DB = 1
+REDIS_PASS = "xbt123456"
 
 # 音频文件存储目录
 AUDIO_DIR = "audio"
@@ -26,7 +49,7 @@ redis_client = aioredis.Redis(
     port=REDIS_PORT,
     db=REDIS_DB,
     decode_responses=True,
-    password="xbt123456"
+    password=REDIS_PASS
 )
 
 class FileUrl(BaseModel):
@@ -50,10 +73,12 @@ class TaskStatus(BaseModel):
     appointment_id: Optional[int] = None
     files: Optional[str] = None
     speech: Optional[str] = None
+    timestamp: Optional[int] = None
 
 class AnalyzeStatus(BaseModel):
     status: str
     result: Optional[str] = None
+    timestamp: Optional[int] = None
 
 def is_valid_url(url: str) -> bool:
     try:
@@ -73,6 +98,17 @@ async def download_file(url: str, save_path: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to download file: {str(e)}")
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+@app.get("/metrics")
+async def metrics():
+    return {"info": "nothing"}
+
+@app.get("/")
+async def root():
+    return {"message": "Hello from FastAPI service registered in Consul!"}
 
 @app.post("/recognize", response_model=TaskResponse)
 async def recognize_audio(request: AudioRecognitionRequest):
@@ -108,7 +144,8 @@ async def recognize_audio(request: AudioRecognitionRequest):
         "appointment_id": appointment_id,
         "files": json.dumps(jsonable_encoder(request.files),ensure_ascii=False),
         "scp_file": output_file,
-        "status": status
+        "status": status,
+        "timestamp": int(time.time())
     }
 
     key = f"funasr:{task_id}:{appointment_id}"
@@ -137,7 +174,8 @@ async def get_task_list(task_id: str):
                 appointment_id=task_data.get("appointment_id"),
                 files=task_data.get("files"),
                 status=task_data.get("status", "unknown"),
-                speech=task_data.get("speech")
+                speech=task_data.get("speech"),
+                timestamp=task_data.get("timestamp")
             )
         )
 
@@ -156,7 +194,8 @@ async def get_task(task_id: str, appointment_id: str):
         appointment_id=appointment_id,
         files=task_data.get("files"),
         status=task_data.get("status", "unknown"),
-        speech=task_data.get("speech")
+        speech=task_data.get("speech"),
+        timestamp=task_data.get("timestamp")
     )
 
 @app.get("/getAnalyzeStatus/{task_id}", response_model=AnalyzeStatus)
@@ -168,7 +207,8 @@ async def get_analyze_status(task_id: str):
 
     return AnalyzeStatus(
         status=task_data.get("status", "unknown"),
-        result=task_data.get("result")
+        result=task_data.get("result"),
+        timestamp=task_data.get("timestamp")
     )
 
 @app.get("/analyze/{task_id}", response_model=TaskResponse)
@@ -177,6 +217,7 @@ async def analyze(task_id: str):
     
     # 更新任务状态为排队中
     await redis_client.hset(key, "status", "pending")
+    await redis_client.hset(key, "timestamp", int(time.time()))
     await redis_client.lpush("asr_tasks", key)
     return TaskResponse(
         task_id=key,
@@ -185,5 +226,4 @@ async def analyze(task_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)

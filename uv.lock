@@ -75,6 +75,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "funasr" },
     { name = "pydantic" },
+    { name = "python-consul" },
     { name = "redis" },
     { name = "torch" },
     { name = "torchaudio" },
@@ -88,6 +89,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "funasr", specifier = ">=1.2.7" },
     { name = "pydantic", specifier = ">=2.11.7" },
+    { name = "python-consul", specifier = ">=1.1.0" },
     { name = "redis", specifier = ">=6.4.0" },
     { name = "torch", specifier = ">=2.8.0" },
     { name = "torchaudio", specifier = ">=2.8.0" },
@@ -1046,6 +1048,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7e/58/560a4db5eb3794d922fe55804b10326534ded3d971e1933c1eef91193f5e/pynndescent-0.5.13.tar.gz", hash = "sha256:d74254c0ee0a1eeec84597d5fe89fedcf778593eeabe32c2f97412934a9800fb", size = 2975955, upload-time = "2024-06-17T15:48:32.914Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d2/53/d23a97e0a2c690d40b165d1062e2c4ccc796be458a1ce59f6ba030434663/pynndescent-0.5.13-py3-none-any.whl", hash = "sha256:69aabb8f394bc631b6ac475a1c7f3994c54adf3f51cd63b2730fefba5771b949", size = 56850, upload-time = "2024-06-17T15:48:31.184Z" },
+]
+
+[[package]]
+name = "python-consul"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7f/06/c12ff73cb1059c453603ba5378521e079c3f0ab0f0660c410627daca64b7/python-consul-1.1.0.tar.gz", hash = "sha256:168f1fa53948047effe4f14d53fc1dab50192e2a2cf7855703f126f469ea11f4", size = 25686, upload-time = "2018-07-09T04:13:48.221Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/d0/59bc5f1c6c4d4b498c41d8ce7052ee9e9d68be19e16038a55252018a6c4d/python_consul-1.1.0-py2.py3-none-any.whl", hash = "sha256:eeaaeeae87807ad1bc0d476ca3a9c53823ed5d514832951acebeca671eb54b20", size = 24308, upload-time = "2018-07-09T04:13:47.058Z" },
 ]
 
 [[package]]

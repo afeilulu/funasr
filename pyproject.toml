@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.116.1",
     "funasr>=1.2.7",
     "pydantic>=2.11.7",
+    "python-consul>=1.1.0",
     "redis>=6.4.0",
     "torch>=2.8.0",
     "torchaudio>=2.8.0",
