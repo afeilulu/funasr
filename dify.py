@@ -25,7 +25,7 @@ def dify_post(token, var_name, user, content):
                         dify_data = json.loads(json_str)
                         # 根据事件类型进行条件处理
                         event_type = dify_data.get("event")
-                        print(event_type)
+                        # print(event_type)
                         # 处理文本片段事件
                         if (event_type == "workflow_finished") :
                             return dify_data

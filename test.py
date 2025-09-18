@@ -43,11 +43,12 @@ def local():
         input="./wav.scp",
         output_dir=output_dir,
         batch_size_s=300,
-        hotword='魔搭'
+        hotword='正畸 患者主诉 牙齿疼痛 牙龈出血 牙齿敏感 要求洁牙 牙齿不齐 检查发现 探诊出血 牙周袋 牙龈红肿 牙齿松动 充填体脱落 裂纹 缺失牙 诊断 慢性牙周炎 慢性根尖周炎 急性牙髓炎 深龋 中龋 浅龋 牙列缺损 牙列不齐 牙髓坏死 牙龈炎 颌关节紊乱',
+        # hotword='魔搭'
     )
 
     text = rich_transcription_postprocess(res[0]["text"])
-    print(text)
+    # print(text)
 
     print("-------------------------------------------------------------")
     for item in res:

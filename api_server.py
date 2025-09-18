@@ -1,3 +1,4 @@
+import operator
 import os
 import time
 from typing import Optional
@@ -11,7 +12,7 @@ import json
 from urllib.parse import urlparse
 from contextlib import asynccontextmanager
 # import signal
-from consul import register_service, deregister_service
+from consul_service import register_service, deregister_service
 
 # Lifespan events for FastAPI
 @asynccontextmanager
@@ -61,7 +62,8 @@ class AudioRecognitionRequest(BaseModel):
     customer_id: int # patientId
     appointment_id: int
     files: list[FileUrl] = None
-    parse: bool = False
+    parse: bool = False,
+    check_in_time: int
 
 class TaskResponse(BaseModel):
     task_id: str
@@ -74,6 +76,7 @@ class TaskStatus(BaseModel):
     files: Optional[str] = None
     speech: Optional[str] = None
     timestamp: Optional[int] = None
+    check_in_time: Optional[int] = None
 
 class AnalyzeStatus(BaseModel):
     status: str
@@ -145,7 +148,8 @@ async def recognize_audio(request: AudioRecognitionRequest):
         "files": json.dumps(jsonable_encoder(request.files),ensure_ascii=False),
         "scp_file": output_file,
         "status": status,
-        "timestamp": int(time.time())
+        "timestamp": int(time.time()),
+        "check_in_time": request.check_in_time
     }
 
     key = f"funasr:{task_id}:{appointment_id}"
@@ -175,11 +179,13 @@ async def get_task_list(task_id: str):
                 files=task_data.get("files"),
                 status=task_data.get("status", "unknown"),
                 speech=task_data.get("speech"),
-                timestamp=task_data.get("timestamp")
+                timestamp=task_data.get("timestamp"),
+                check_in_time=task_data.get("check_in_time") or int(time.time())
             )
         )
 
-    return res
+    sorted_res = sorted(res, key=operator.attrgetter('check_in_time'), reverse=True)
+    return sorted_res
 
 
 @app.get("/status/{task_id}/{appointment_id}", response_model=TaskStatus)

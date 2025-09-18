@@ -30,6 +30,33 @@ redis_client = redis.Redis(
     password="xbt123456"
 )
 
+def read_and_join_file(filename):
+    """
+    读取UTF-8文件，忽略#开头的行，将每行用英文空格拼接返回
+    
+    Args:
+        filename (str): 要读取的文件路径
+        
+    Returns:
+        str: 处理后的字符串
+    """
+    lines = []
+    try:
+        with open(filename, 'r', encoding='utf-8') as file:
+            for line in file:
+                # 去除行首尾空白字符
+                stripped_line = line.strip()
+                # 跳过空行和以#开头的行
+                if stripped_line and not stripped_line.startswith('#'):
+                    lines.append(stripped_line)
+    except FileNotFoundError:
+        return f"错误：文件 '{filename}' 未找到"
+    except Exception as e:
+        return f"读取文件时出错：{str(e)}"
+    
+    # 用空格拼接所有非注释行
+    return ' '.join(lines)
+
 def download_model():
     """下载模型"""
     try:
@@ -62,27 +89,32 @@ def process_audio(key: str, file_path: str, model):
         redis_client.hset(key, "status", "processing")
 
         # 执行语音识别
-        result = model.generate(input=file_path)
+        result = model.generate(
+            input=file_path,
+            hotword=read_and_join_file('./hotword.txt'),
+            batch_size_s=300
+            )
         # text = rich_transcription_postprocess(result[0]["text"])
         # print(text)
         # text_result = text
 
         messages = []
         for stage in result:
-            speech_list = stage["sentence_info"]
-            for item in speech_list:
-                del item["timestamp"]
+            # speech_list = stage["sentence_info"]
+            # for item in speech_list:
+            #     del item["timestamp"]
+            speech_list = merge_consecutive_items(stage["sentence_info"])
 
             # speech = json.dumps(speech_list, indent=2, ensure_ascii=False)
             speech = json.dumps(speech_list, ensure_ascii=False)
-            print(speech)
             # dify解析对话，优化输出
             json_data = dify_post("app-H4YrU42V6PPTDXLriarazedD", "chatContent", key, speech)
             # 解析输出为json
-            print(json_data)
+            # print(json_data)
             data_str = json_data["data"]["outputs"]["chatContent"]
             print(data_str)
             msg_json = parse_dify_any(data_str)
+            msg_json = merge_consecutive_items(msg_json)
             if (msg_json is not None):
                 messages.append(msg_json)
 
@@ -195,6 +227,39 @@ def run(download: bool = typer.Option(False, "--download", "-d", help="Download 
         return
 
     start_worker()
+
+def merge_consecutive_items(items):
+    if not items:
+        return []
+    
+    merged_items = []
+    current_item = items[0].copy()  # 创建当前项的副本以避免修改原项
+    if ("timestamp" in current_item):
+        del current_item["timestamp"]
+    
+    for i in range(1, len(items)):
+        next_item = items[i]
+        if ("timestamp" in next_item):
+            del next_item["timestamp"]
+        
+        # 检查是否满足合并条件：相同说话人且当前结束时间等于下一项开始时间
+        if (current_item['spk'] == next_item['spk'] and 
+            current_item['end'] == next_item['start']):
+            
+            # 合并文本
+            current_item['text'] += next_item['text']
+            # 更新结束时间为下一项的结束时间
+            current_item['end'] = next_item['end']
+        else:
+            # 如果不满足合并条件，将当前项添加到结果列表
+            merged_items.append(current_item)
+            # 重置当前项为下一项
+            current_item = next_item.copy()
+    
+    # 添加最后一个当前项
+    merged_items.append(current_item)
+    
+    return merged_items
 
 
 if __name__ == "__main__":
