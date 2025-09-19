@@ -2,7 +2,7 @@ from funasr import AutoModel
 # from funasr.utils.postprocess_utils import rich_transcription_postprocess
 import json
 # from dify import dify_post, parse_dify_any
-from utils import merge_consecutive_items
+from common import merge_consecutive_items, split_and_save_json_list
 
 def test():
     output_dir = "./results"
@@ -64,7 +64,35 @@ def local():
         # parse_dify_any(json_data["data"]["outputs"]["chatContent"])
         
 
+def split():
+    output_dir = "./results"
+    model = AutoModel(
+        model=model_dir,
+        vad_model=vad_model_dir,
+        punc_model=punc_model_dir,
+        spk_model=spk_model_dir,
+        device="cpu",
+        disable_update=True,
+        ffmpeg_path="./ffmpeg.exe"
+    )
+
+    res = model.generate(
+        input="./wav.scp",
+        output_dir=output_dir,
+        batch_size_s=300,
+        hotword='正畸 患者主诉 牙齿疼痛 牙龈出血 牙齿敏感 要求洁牙 牙齿不齐 检查发现 探诊出血 牙周袋 牙龈红肿 牙齿松动 充填体脱落 裂纹 缺失牙 诊断 慢性牙周炎 慢性根尖周炎 急性牙髓炎 深龋 中龋 浅龋 牙列缺损 牙列不齐 牙髓坏死 牙龈炎 颌关节紊乱',
+    )
+
+    for item in res:
+        speech_list = merge_consecutive_items(item["sentence_info"])
+        split_and_save_json_list(speech_list, base_filename="part", output_dir="results")
+        # speech = json.dumps(speech_list, ensure_ascii=False)
+        # print(speech)
+
+        # json_data = dify_post("app-H4YrU42V6PPTDXLriarazedD", "chatContent", "user_123", speech)
+        # parse_dify_any(json_data["data"]["outputs"]["chatContent"])
+
 if __name__ == "__main__":
-    local()
+    split()
 
 

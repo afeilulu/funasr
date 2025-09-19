@@ -1,6 +1,8 @@
 import json
 import requests
 
+from common import extract_json_content
+
 def dify_post(token, var_name, user, content):
     url = "https://dify.dev.xbt.sx.cn/v1/workflows/run"
     headers = {
@@ -25,10 +27,14 @@ def dify_post(token, var_name, user, content):
                         dify_data = json.loads(json_str)
                         # 根据事件类型进行条件处理
                         event_type = dify_data.get("event")
-                        # print(event_type)
+                        print(event_type)
                         # 处理文本片段事件
-                        if (event_type == "workflow_finished") :
-                            return dify_data
+                        if (event_type == "workflow_finished"):
+                            if (dify_data["data"]["status"]=="succeeded"):
+                                return dify_data
+                            else:
+                                print(dify_data["data"]["error"])
+                                return None
 
             return None
         else:
@@ -45,15 +51,20 @@ def parse_dify_any(outputs):
 
     # 进一步解析outputs中的JSON数组
     try:
-        # 去除Markdown代码块标记和多余的转义字符
-        json_content = outputs.strip('`').replace('\\n', '').replace('\\t', '').replace('\\"', '"')
-        # 提取JSON部分（去掉开头的"json"标记）
-        if json_content.startswith('json'):
-            json_content = json_content[4:].strip()
+        # # 去除Markdown代码块标记和多余的转义字符
+        # json_content = outputs.strip('`').replace('\\n', '').replace('\\t', '').replace('\\"', '"')
+        # # 提取JSON部分（去掉开头的"json"标记）
+        # if json_content.startswith('json'):
+        #     json_content = json_content[4:].strip()
+
+        json_content = extract_json_content(outputs)
+        print(json_content)
         
         # 解析JSON数组
-        messages = json.loads(json_content)
-        return messages
+        if json_content:
+            return json.loads(json_content)
+        
+        return None
     except json.JSONDecodeError as e:
         print(f"解析chatContent中的JSON时出错: {e}")
         return None

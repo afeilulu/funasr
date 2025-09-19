@@ -5,7 +5,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from funasr import AutoModel
 from dify import dify_post, parse_dify_any
-from utils import merge_consecutive_items
+from common import merge_consecutive_items, split_and_save_json_list
 from dotenv import load_dotenv
 # from funasr.utils.postprocess_utils import rich_transcription_postprocess
 
@@ -112,18 +112,30 @@ def process_audio(key: str, file_path: str, model):
             #     del item["timestamp"]
             speech_list = merge_consecutive_items(stage["sentence_info"])
 
-            # speech = json.dumps(speech_list, indent=2, ensure_ascii=False)
-            speech = json.dumps(speech_list, ensure_ascii=False)
-            # dify解析对话，优化输出
-            json_data = dify_post("app-H4YrU42V6PPTDXLriarazedD", "chatContent", key, speech)
-            # 解析输出为json
-            # print(json_data)
-            data_str = json_data["data"]["outputs"]["chatContent"]
-            print(data_str)
-            msg_json = parse_dify_any(data_str)
-            # msg_json = merge_consecutive_items(msg_json)
-            if (msg_json is not None):
-                messages.append(msg_json)
+            # file_name = f"{key}.json".replace(':',"_")
+            # file_path = save_file(speech_list, file_name, output_dir="results")
+            # url = upload_file(file_name, file_path)
+
+            base_filename = key.replace(':',"_")
+            urls = split_and_save_json_list(speech_list, base_filename=base_filename, output_dir='results')
+            
+            speech = []
+            for url in urls:
+                # speech = json.dumps(speech_list, ensure_ascii=False)
+                # # dify解析对话，优化输出
+                # json_data = dify_post("app-H4YrU42V6PPTDXLriarazedD", "chatContent", key, speech)
+                json_data = dify_post("app-hnx5SNorP7M6Aw1NJ8kMVebg", "url", key, url)
+
+                # 解析输出为json
+                # print(json_data)
+                data_str = json_data["data"]["outputs"]["text"]
+                # print(data_str)
+                part_msg_json = parse_dify_any(data_str)
+                if part_msg_json:
+                    speech = speech.extend(part_msg_json)
+
+            if speech:
+                messages.append(speech)
 
         # 更新任务对话解析结果
         redis_client.hmset(key, {
