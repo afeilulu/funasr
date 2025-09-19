@@ -49,3 +49,7 @@ nohup bash run_server.sh \
   --punc-dir iic/punc_ct-transformer_zh-cn-common-vocab272727-onnx \
   --certfile 0 \
   --hotword /workspace/models/hotwords.txt > log.txt 2>&1 &
+
+
+full: https://xbt-platform-public-1301716714.cos.ap-chengdu.myqcloud.com/be0c1221-1958-4679-b4c8-770fec1a114f
+80: https://xbt-platform-public-1301716714.cos.ap-chengdu.myqcloud.com/beb8b21f-6ea7-47aa-856f-9b63583afa19

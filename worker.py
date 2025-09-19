@@ -5,29 +5,36 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from funasr import AutoModel
 from dify import dify_post, parse_dify_any
+from utils import merge_consecutive_items
+from dotenv import load_dotenv
 # from funasr.utils.postprocess_utils import rich_transcription_postprocess
 
 app = typer.Typer()
 
+# 加载.env文件中的环境变量
+load_dotenv()
+
 # 配置
-REDIS_HOST = "192.168.5.127"
-REDIS_PORT = 32163
-REDIS_DB = 1
 MODEL_DIR = "models"
 MAX_WORKERS = 2  # 最大并发处理数量
 
-os.environ["MODELSCOPE_CACHE"] = os.path.dirname(os.path.abspath(__file__))  # 设置模型缓存路径
+# 设置模型缓存路径
+os.environ["MODELSCOPE_CACHE"] = os.path.dirname(os.path.abspath(__file__))  
 
 # ffmpeg配置
 FFMPEG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ffmpeg.exe")
 
 # Redis客户端
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT")
+REDIS_DB = os.getenv("REDIS_DB")
+REDIS_PASS = os.getenv("REDIS_PASS")
 redis_client = redis.Redis(
     host=REDIS_HOST,
     port=REDIS_PORT,
     db=REDIS_DB,
     decode_responses=True,
-    password="xbt123456"
+    password=REDIS_PASS
 )
 
 def read_and_join_file(filename):
@@ -114,7 +121,7 @@ def process_audio(key: str, file_path: str, model):
             data_str = json_data["data"]["outputs"]["chatContent"]
             print(data_str)
             msg_json = parse_dify_any(data_str)
-            msg_json = merge_consecutive_items(msg_json)
+            # msg_json = merge_consecutive_items(msg_json)
             if (msg_json is not None):
                 messages.append(msg_json)
 
@@ -227,39 +234,6 @@ def run(download: bool = typer.Option(False, "--download", "-d", help="Download 
         return
 
     start_worker()
-
-def merge_consecutive_items(items):
-    if not items:
-        return []
-    
-    merged_items = []
-    current_item = items[0].copy()  # 创建当前项的副本以避免修改原项
-    if ("timestamp" in current_item):
-        del current_item["timestamp"]
-    
-    for i in range(1, len(items)):
-        next_item = items[i]
-        if ("timestamp" in next_item):
-            del next_item["timestamp"]
-        
-        # 检查是否满足合并条件：相同说话人且当前结束时间等于下一项开始时间
-        if (current_item['spk'] == next_item['spk'] and 
-            current_item['end'] == next_item['start']):
-            
-            # 合并文本
-            current_item['text'] += next_item['text']
-            # 更新结束时间为下一项的结束时间
-            current_item['end'] = next_item['end']
-        else:
-            # 如果不满足合并条件，将当前项添加到结果列表
-            merged_items.append(current_item)
-            # 重置当前项为下一项
-            current_item = next_item.copy()
-    
-    # 添加最后一个当前项
-    merged_items.append(current_item)
-    
-    return merged_items
 
 
 if __name__ == "__main__":

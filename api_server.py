@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 from contextlib import asynccontextmanager
 # import signal
 from consul_service import register_service, deregister_service
+from dotenv import load_dotenv
 
 # Lifespan events for FastAPI
 @asynccontextmanager
@@ -34,17 +35,18 @@ app = FastAPI(title="FunASR API Server", lifespan=lifespan, root_path="/funasr-a
 # signal.signal(signal.SIGINT, handle_shutdown)
 # signal.signal(signal.SIGTERM, handle_shutdown)
 
-# Redis配置
-REDIS_HOST = "192.168.5.127"
-REDIS_PORT = 32163
-REDIS_DB = 1
-REDIS_PASS = "xbt123456"
-
 # 音频文件存储目录
 AUDIO_DIR = "audio"
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
+# 加载.env文件中的环境变量
+load_dotenv()
+
 # Redis客户端
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT")
+REDIS_DB = os.getenv("REDIS_DB")
+REDIS_PASS = os.getenv("REDIS_PASS")
 redis_client = aioredis.Redis(
     host=REDIS_HOST,
     port=REDIS_PORT,

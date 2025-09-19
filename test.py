@@ -1,7 +1,8 @@
 from funasr import AutoModel
-from funasr.utils.postprocess_utils import rich_transcription_postprocess
+# from funasr.utils.postprocess_utils import rich_transcription_postprocess
 import json
-from dify import dify_post, parse_dify_any
+# from dify import dify_post, parse_dify_any
+from utils import merge_consecutive_items
 
 def test():
     output_dir = "./results"
@@ -47,18 +48,20 @@ def local():
         # hotword='魔搭'
     )
 
-    text = rich_transcription_postprocess(res[0]["text"])
+    # text = rich_transcription_postprocess(res[0]["text"])
     # print(text)
 
     print("-------------------------------------------------------------")
     for item in res:
-        speech_list = item["sentence_info"]
-        for item in speech_list:
-            del item["timestamp"]
-
+        # speech_list = item["sentence_info"]
+        # for item in speech_list:
+        #     del item["timestamp"]
+        speech_list = merge_consecutive_items(item["sentence_info"])
         speech = json.dumps(speech_list, ensure_ascii=False)
-        json_data = dify_post("app-H4YrU42V6PPTDXLriarazedD", "chatContent", "user_123", speech)
-        parse_dify_any(json_data["data"]["outputs"]["chatContent"])
+        print(speech)
+
+        # json_data = dify_post("app-H4YrU42V6PPTDXLriarazedD", "chatContent", "user_123", speech)
+        # parse_dify_any(json_data["data"]["outputs"]["chatContent"])
         
 
 if __name__ == "__main__":
