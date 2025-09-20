@@ -7,6 +7,8 @@ from funasr import AutoModel
 from dify import dify_post, parse_dify_any
 from common import merge_consecutive_items, split_and_save_json_list
 from dotenv import load_dotenv
+
+from parallel import get_urls_content
 # from funasr.utils.postprocess_utils import rich_transcription_postprocess
 
 app = typer.Typer()
@@ -120,19 +122,19 @@ def process_audio(key: str, file_path: str, model):
             urls = split_and_save_json_list(speech_list, base_filename=base_filename, output_dir='results')
             
             speech = []
-            for url in urls:
-                # speech = json.dumps(speech_list, ensure_ascii=False)
-                # # dify解析对话，优化输出
-                # json_data = dify_post("app-H4YrU42V6PPTDXLriarazedD", "chatContent", key, speech)
-                json_data = dify_post("app-hnx5SNorP7M6Aw1NJ8kMVebg", "url", key, url)
-
-                # 解析输出为json
-                # print(json_data)
-                data_str = json_data["data"]["outputs"]["text"]
-                # print(data_str)
-                part_msg_json = parse_dify_any(data_str)
-                if part_msg_json:
-                    speech = speech.extend(part_msg_json)
+            
+            # 获取URL内容
+            contents = get_urls_content(urls, timeout=10, max_concurrent=len(urls))
+            
+            # 打印结果
+            for url, content in zip(urls, contents):
+                if content is not None:
+                    if content.startswith("error:"):
+                        print(f"{url} -> {content}")
+                    else:
+                        speech.extend(json.loads(content))
+                else:
+                    print(f"{url} -> 请求失败")
 
             if speech:
                 messages.append(speech)

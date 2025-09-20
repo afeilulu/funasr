@@ -10,7 +10,7 @@ def extract_json_content(text):
     :param text: 包含JSON内容的原始文本
     :return: 提取到的JSON字符串，如果没有找到则返回None
     """
-    pattern = r'```json\s*(.*?)\s*```'
+    pattern = r'.*?```json\s*(.*?)\s*```'
     match = re.search(pattern, text, re.DOTALL)
     return match.group(1) if match else None
 

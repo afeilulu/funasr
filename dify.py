@@ -1,6 +1,5 @@
 import json
 import requests
-
 from common import extract_json_content
 
 def dify_post(token, var_name, user, content):

@@ -2,7 +2,7 @@ from funasr import AutoModel
 # from funasr.utils.postprocess_utils import rich_transcription_postprocess
 import json
 # from dify import dify_post, parse_dify_any
-from common import merge_consecutive_items, split_and_save_json_list
+from common import extract_json_content, merge_consecutive_items, split_and_save_json_list
 
 def test():
     output_dir = "./results"
@@ -93,6 +93,12 @@ def split():
         # parse_dify_any(json_data["data"]["outputs"]["chatContent"])
 
 if __name__ == "__main__":
-    split()
+    # split()
 
+    # 示例文本
+    text = """```json\n[\n  {\n    "spk": "患者",\n    "text": "比如说我这里就随便说两句。"\n  }\n]\n```"""
+
+    # 提取JSON内容
+    json_content = extract_json_content(text)
+    print(json_content)
 
