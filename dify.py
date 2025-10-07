@@ -2,34 +2,33 @@ import json
 import requests
 from common import extract_json_content
 
+
 def dify_post(token, var_name, user, content):
     url = "https://dify.dev.xbt.sx.cn/v1/workflows/run"
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
+    headers = {"Authorization": f"Bearer {token}"}
     data = {
         "inputs": {f"{var_name}": content},
         "response_mode": "streaming",
-        "user": user
+        "user": user,
     }
     try:
-        r = requests.post(url=url,json=data,headers=headers,stream=True)
+        r = requests.post(url=url, json=data, headers=headers, stream=True)
         if r.status_code == 200:
             print("请求成功！")
-        
+
             for line in r.iter_lines():
                 if line:
                     # SSE 协议中，数据行以 "data: " 开头 [1]
                     if line.startswith(b"data:"):
                         # 提取 JSON 字符串
-                        json_str = line.decode('utf-8')[5:].strip()
+                        json_str = line.decode("utf-8")[5:].strip()
                         dify_data = json.loads(json_str)
                         # 根据事件类型进行条件处理
                         event_type = dify_data.get("event")
                         print(event_type)
                         # 处理文本片段事件
-                        if (event_type == "workflow_finished"):
-                            if (dify_data["data"]["status"]=="succeeded"):
+                        if event_type == "workflow_finished":
+                            if dify_data["data"]["status"] == "succeeded":
                                 return dify_data
                             else:
                                 print(dify_data["data"]["error"])
@@ -43,9 +42,10 @@ def dify_post(token, var_name, user, content):
     except requests.RequestException as e:
         print(f"请求失败，错误：{e}")
         return None
-    
+
+
 def parse_dify_any(outputs):
-    if (outputs is None):
+    if outputs is None:
         return None
 
     # 进一步解析outputs中的JSON数组
@@ -58,12 +58,13 @@ def parse_dify_any(outputs):
 
         json_content = extract_json_content(outputs)
         print(json_content)
-        
+
         # 解析JSON数组
         if json_content:
             return json.loads(json_content)
-        
+
         return None
     except json.JSONDecodeError as e:
         print(f"解析chatContent中的JSON时出错: {e}")
         return None
+

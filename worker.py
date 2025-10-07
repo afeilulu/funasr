@@ -21,50 +21,52 @@ MODEL_DIR = "models"
 MAX_WORKERS = 2  # 最大并发处理数量
 
 # 设置模型缓存路径
-os.environ["MODELSCOPE_CACHE"] = os.path.dirname(os.path.abspath(__file__))  
+os.environ["MODELSCOPE_CACHE"] = os.path.dirname(os.path.abspath(__file__))
 
 # ffmpeg配置
 FFMPEG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ffmpeg.exe")
 
 # Redis客户端
-REDIS_HOST = os.getenv("REDIS_HOST")
-REDIS_PORT = os.getenv("REDIS_PORT")
-REDIS_DB = os.getenv("REDIS_DB")
-REDIS_PASS = os.getenv("REDIS_PASS")
+REDIS_HOST = os.getenv("REDIS_HOST", "192.168.5.5")
+REDIS_PORT = os.getenv("REDIS_PORT", 6379)
+REDIS_DB = os.getenv("REDIS_DB", 0)
+REDIS_PASS = os.getenv("REDIS_PASS", "password")
 redis_client = redis.Redis(
     host=REDIS_HOST,
-    port=REDIS_PORT,
-    db=REDIS_DB,
+    port=int(REDIS_PORT),
+    db=int(REDIS_DB),
     decode_responses=True,
-    password=REDIS_PASS
+    password=REDIS_PASS,
 )
+
 
 def read_and_join_file(filename):
     """
     读取UTF-8文件，忽略#开头的行，将每行用英文空格拼接返回
-    
+
     Args:
         filename (str): 要读取的文件路径
-        
+
     Returns:
         str: 处理后的字符串
     """
     lines = []
     try:
-        with open(filename, 'r', encoding='utf-8') as file:
+        with open(filename, "r", encoding="utf-8") as file:
             for line in file:
                 # 去除行首尾空白字符
                 stripped_line = line.strip()
                 # 跳过空行和以#开头的行
-                if stripped_line and not stripped_line.startswith('#'):
+                if stripped_line and not stripped_line.startswith("#"):
                     lines.append(stripped_line)
     except FileNotFoundError:
         return f"错误：文件 '{filename}' 未找到"
     except Exception as e:
         return f"读取文件时出错：{str(e)}"
-    
+
     # 用空格拼接所有非注释行
-    return ' '.join(lines)
+    return " ".join(lines)
+
 
 def download_model():
     """下载模型"""
@@ -78,12 +80,16 @@ def download_model():
 
         # 初始化模型会自动下载
         AutoModel(
-            model="paraformer-zh",model_revision="v2.0.4",
-            vad_model="fsmn-vad",vad_model_revision="v2.0.4",
-            punc_model="ct-punc-c", punc_model_revision="v2.0.4",
-            spk_model="cam++", spk_model_revision="v2.0.2",
+            model="paraformer-zh",
+            model_revision="v2.0.4",
+            vad_model="fsmn-vad",
+            vad_model_revision="v2.0.4",
+            punc_model="ct-punc-c",
+            punc_model_revision="v2.0.4",
+            spk_model="cam++",
+            spk_model_revision="v2.0.2",
             device="cuda" if torch.cuda.is_available() else "cpu",
-            ffmpeg_path=FFMPEG_PATH
+            ffmpeg_path=FFMPEG_PATH,
         )
         return True
     except Exception as e:
@@ -100,9 +106,9 @@ def process_audio(key: str, file_path: str, model):
         # 执行语音识别
         result = model.generate(
             input=file_path,
-            hotword=read_and_join_file('./hotword.txt'),
-            batch_size_s=300
-            )
+            hotword=read_and_join_file("./hotword.txt"),
+            batch_size_s=300,
+        )
         # text = rich_transcription_postprocess(result[0]["text"])
         # print(text)
         # text_result = text
@@ -118,14 +124,16 @@ def process_audio(key: str, file_path: str, model):
             # file_path = save_file(speech_list, file_name, output_dir="results")
             # url = upload_file(file_name, file_path)
 
-            base_filename = key.replace(':',"_")
-            urls = split_and_save_json_list(speech_list, base_filename=base_filename, output_dir='results')
-            
+            base_filename = key.replace(":", "_")
+            urls = split_and_save_json_list(
+                speech_list, base_filename=base_filename, output_dir="results"
+            )
+
             speech = []
-            
+
             # 获取URL内容
             contents = get_urls_content(urls, timeout=10, max_concurrent=len(urls))
-            
+
             # 打印结果
             for url, content in zip(urls, contents):
                 if content is not None:
@@ -140,64 +148,69 @@ def process_audio(key: str, file_path: str, model):
                 messages.append(speech)
 
         # 更新任务对话解析结果
-        redis_client.hmset(key, {
-            "status": "completed",
-            "speech": json.dumps(messages,ensure_ascii=False)
-        })
+        redis_client.hmset(
+            key,
+            {"status": "completed", "speech": json.dumps(messages, ensure_ascii=False)},
+        )
 
         return True
     except Exception as e:
         print(f"Error processing task {key}: {str(e)}")
-        redis_client.hmset(key, {
-            "status": "failed",
-            "result": str(e)
-        })
+        redis_client.hmset(key, {"status": "failed", "result": str(e)})
         return False
-    
+
+
 def analyze(task_id: str):
     key = f"ana:{task_id}"
     try:
         # 更新任务状态为处理中
         redis_client.hset(key, "status", "processing")
 
-        # 获取历史所有对话    
+        # 获取历史所有对话
         fuzzy_key = f"funasr:{task_id}:*"
         keys = redis_client.keys(fuzzy_key)
-        all_speech=[]
-        for sub_key in keys :
+        all_speech = []
+        for sub_key in keys:
             print(sub_key)
             sub_task_data = redis_client.hgetall(sub_key)
-            speech_list = json.loads(sub_task_data.get("speech"))
-            all_speech.extend(speech_list)
+            if sub_task_data:
+                speech_text = sub_task_data.get("speech")
+                speech_list = json.loads(speech_text)
+                all_speech.extend(speech_list)
 
-        if (len(all_speech) == 0):
-            redis_client.hmset(key, {
-                "status": "failed",
-                "result": "lack of information"
-            })
+        if len(all_speech) == 0:
+            redis_client.hmset(
+                key, {"status": "failed", "result": "lack of information"}
+            )
             return False
 
         # 分析对话
-        json_data_ana = dify_post("app-TlgE19fpgxhpQB9yOA3RBfj8", "chatContent", key, json.dumps(all_speech, ensure_ascii=False))
+        json_data_ana = dify_post(
+            "app-TlgE19fpgxhpQB9yOA3RBfj8",
+            "chatContent",
+            key,
+            json.dumps(all_speech, ensure_ascii=False),
+        )
         print(json_data_ana)
         ana_str = json_data_ana["data"]["outputs"]["text"]
         print(ana_str)
         text_result = parse_dify_any(ana_str)
 
         # 更新分析结果
-        redis_client.hmset(key, {
-            "status": "completed",
-            "result": json.dumps(text_result,ensure_ascii=False)
-        })
+        redis_client.hmset(
+            key,
+            {
+                "status": "completed",
+                "result": json.dumps(text_result, ensure_ascii=False),
+            },
+        )
         return True
     except Exception as e:
         print(f"Error processing analyze {key}: {str(e)}")
-        res = {
-            "status": "failed",
-            "result": str(e)
-        }
+        res = {"status": "failed", "result": str(e)}
         redis_client.hmset(key, res)
         return False
+
 
 def start_worker():
     """启动工作进程"""
@@ -209,7 +222,7 @@ def start_worker():
         spk_model=f"{os.path.dirname(os.path.abspath(__file__))}/models/speech_campplus_sv_zh-cn_16k-common",
         disable_update=True,
         device="cuda" if torch.cuda.is_available() else "cpu",
-        ffmpeg_path=FFMPEG_PATH
+        ffmpeg_path=FFMPEG_PATH,
     )
 
     print(f"Starting worker with {MAX_WORKERS} concurrent tasks...")
@@ -232,11 +245,15 @@ def start_worker():
                 task_id = key[4:].strip()
                 executor.submit(analyze, task_id)
             else:
-                executor.submit(process_audio, key, task_data['scp_file'], model)
+                executor.submit(process_audio, key, task_data["scp_file"], model)
 
 
 @app.command()
-def run(download: bool = typer.Option(False, "--download", "-d", help="Download model before starting worker")):
+def run(
+    download: bool = typer.Option(
+        False, "--download", "-d", help="Download model before starting worker"
+    ),
+):
     """运行ASR工作进程"""
     if download:
         if not download_model():
