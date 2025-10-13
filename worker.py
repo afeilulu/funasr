@@ -17,7 +17,7 @@ app = typer.Typer()
 load_dotenv()
 
 # 配置
-MODEL_DIR = "models"
+MODEL_DIR = "../models"
 MAX_WORKERS = 2  # 最大并发处理数量
 
 # 设置模型缓存路径
