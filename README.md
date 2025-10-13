@@ -1,4 +1,16 @@
+### 安装uv
+```
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
+### 虚拟环境安装包
+```
+uv venv
+source .venv/bin/activate
+uv pip install -U funasr
+uv pip install -U cos-python-sdk-v5
+uv sync
+```
 
 ### 下载模型到本地
 ```
