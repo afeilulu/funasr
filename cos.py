@@ -1,4 +1,5 @@
 # -*- coding=utf-8
+# to use qcloud_cos: pip install -U cos-python-sdk-v5
 from qcloud_cos import CosConfig
 from qcloud_cos import CosS3Client
 import sys

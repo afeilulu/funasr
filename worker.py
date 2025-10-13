@@ -24,7 +24,8 @@ MAX_WORKERS = 2  # 最大并发处理数量
 os.environ["MODELSCOPE_CACHE"] = os.path.dirname(os.path.abspath(__file__))
 
 # ffmpeg配置
-FFMPEG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ffmpeg.exe")
+# FFMPEG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ffmpeg.exe")
+FFMPEG_PATH = "/usr/bin/ffmpeg"
 
 # Redis客户端
 REDIS_HOST = os.getenv("REDIS_HOST", "192.168.5.5")
