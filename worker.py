@@ -18,7 +18,8 @@ load_dotenv()
 
 # 配置
 MODEL_DIR = "../models"
-MAX_WORKERS = 2  # 最大并发处理数量
+MAX_WORKERS = 100  # 最大并发处理数量
+cpu_cores = os.cpu_count()
 
 # 设置模型缓存路径
 os.environ["MODELSCOPE_CACHE"] = os.path.dirname(os.path.abspath(__file__))
@@ -214,6 +215,7 @@ def analyze(task_id: str):
 
 
 def start_worker():
+    print(f"cpu_cores={cpu_cores}")
     """启动工作进程"""
     print("Initializing ASR model...")
     model = AutoModel(
@@ -224,6 +226,7 @@ def start_worker():
         disable_update=True,
         device="cuda" if torch.cuda.is_available() else "cpu",
         ffmpeg_path=FFMPEG_PATH,
+        ncpu=cpu_cores
     )
 
     print(f"Starting worker with {MAX_WORKERS} concurrent tasks...")
