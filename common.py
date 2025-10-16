@@ -3,6 +3,32 @@ import json
 import re
 from cos import upload_file
 
+def read_and_join_file(filename):
+    """
+    读取UTF-8文件，忽略#开头的行，将每行用英文空格拼接返回
+
+    Args:
+        filename (str): 要读取的文件路径
+
+    Returns:
+        str: 处理后的字符串
+    """
+    lines = []
+    try:
+        with open(filename, "r", encoding="utf-8") as file:
+            for line in file:
+                # 去除行首尾空白字符
+                stripped_line = line.strip()
+                # 跳过空行和以#开头的行
+                if stripped_line and not stripped_line.startswith("#"):
+                    lines.append(stripped_line)
+    except FileNotFoundError:
+        return f"错误：文件 '{filename}' 未找到"
+    except Exception as e:
+        return f"读取文件时出错：{str(e)}"
+
+    # 用空格拼接所有非注释行
+    return " ".join(lines)
 
 def extract_json_content(text):
     """

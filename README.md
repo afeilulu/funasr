@@ -12,7 +12,10 @@ uv pip install -U cos-python-sdk-v5
 uv sync
 ```
 
-### 下载模型到本地
+### 设置模型cache系统环境变量，运行时自动下载到该目录
+export MODELSCOPE_CACHE=/path/to/cache/directory
+
+### 手动下载模型到本地
 ```
 modelscope download --model iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch  --local_dir ./speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch
 modelscope download --model iic/speech_fsmn_vad_zh-cn-16k-common-pytorch  --local_dir ./speech_fsmn_vad_zh-cn-16k-common-pytorch

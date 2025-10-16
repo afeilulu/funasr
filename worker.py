@@ -2,10 +2,11 @@ import os
 import typer
 import redis
 import json
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from funasr import AutoModel
 from dify import dify_post, parse_dify_any
-from common import merge_consecutive_items, split_and_save_json_list
+from common import merge_consecutive_items, read_and_join_file, split_and_save_json_list
 from dotenv import load_dotenv
 
 from parallel import get_urls_content
@@ -17,16 +18,20 @@ app = typer.Typer()
 load_dotenv()
 
 # 配置
-MODEL_DIR = "../models"
+MODEL_DIR = "/root/model_cache" if sys.platform.startswith('linux') else "D:\\funasr\\model_cache"
 MAX_WORKERS = 100  # 最大并发处理数量
 cpu_cores = os.cpu_count()
 
 # 设置模型缓存路径
-os.environ["MODELSCOPE_CACHE"] = os.path.dirname(os.path.abspath(__file__))
+# os.environ["MODELSCOPE_CACHE"] = os.path.dirname(os.path.abspath(__file__))
+os.environ["MODELSCOPE_CACHE"] = MODEL_DIR
 
 # ffmpeg配置
 # FFMPEG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ffmpeg.exe")
-FFMPEG_PATH = "/usr/bin/ffmpeg"
+FFMPEG_PATH = "/usr/bin/ffmpeg" if sys.platform.startswith('linux') else "./ffmpeg.exe"
+
+# 模型热词
+hotword = read_and_join_file("./hotword")
 
 # Redis客户端
 REDIS_HOST = os.getenv("REDIS_HOST", "192.168.5.5")
@@ -40,35 +45,6 @@ redis_client = redis.Redis(
     decode_responses=True,
     password=REDIS_PASS,
 )
-
-
-def read_and_join_file(filename):
-    """
-    读取UTF-8文件，忽略#开头的行，将每行用英文空格拼接返回
-
-    Args:
-        filename (str): 要读取的文件路径
-
-    Returns:
-        str: 处理后的字符串
-    """
-    lines = []
-    try:
-        with open(filename, "r", encoding="utf-8") as file:
-            for line in file:
-                # 去除行首尾空白字符
-                stripped_line = line.strip()
-                # 跳过空行和以#开头的行
-                if stripped_line and not stripped_line.startswith("#"):
-                    lines.append(stripped_line)
-    except FileNotFoundError:
-        return f"错误：文件 '{filename}' 未找到"
-    except Exception as e:
-        return f"读取文件时出错：{str(e)}"
-
-    # 用空格拼接所有非注释行
-    return " ".join(lines)
-
 
 def download_model():
     """下载模型"""
@@ -90,8 +66,11 @@ def download_model():
             punc_model_revision="v2.0.4",
             spk_model="cam++",
             spk_model_revision="v2.0.2",
+            disable_update=True,
+            use_itn=True,
             device="cuda" if torch.cuda.is_available() else "cpu",
             ffmpeg_path=FFMPEG_PATH,
+            ncpu=cpu_cores
         )
         return True
     except Exception as e:
@@ -108,7 +87,7 @@ def process_audio(key: str, file_path: str, model):
         # 执行语音识别
         result = model.generate(
             input=file_path,
-            hotword=read_and_join_file("./hotword.txt"),
+            hotword=hotword,
             batch_size_s=300,
         )
         # text = rich_transcription_postprocess(result[0]["text"])
@@ -215,20 +194,31 @@ def analyze(task_id: str):
 
 
 def start_worker():
-    print(f"cpu_cores={cpu_cores}")
     """启动工作进程"""
     print("Initializing ASR model...")
+    # model = AutoModel(
+    #     model=f"{MODEL_DIR}/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+    #     punc_model=f"{MODEL_DIR}/punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
+    #     vad_model=f"{MODEL_DIR}/speech_fsmn_vad_zh-cn-16k-common-pytorch",
+    #     spk_model=f"{MODEL_DIR}/speech_campplus_sv_zh-cn_16k-common",
+    #     disable_update=True,
+    #     device="cuda" if torch.cuda.is_available() else "cpu",
+    #     ffmpeg_path=FFMPEG_PATH,
+    #     ncpu=cpu_cores
+    # )
     model = AutoModel(
-        model=f"{os.path.dirname(os.path.abspath(__file__))}/models/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
-        punc_model=f"{os.path.dirname(os.path.abspath(__file__))}/models/punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
-        vad_model=f"{os.path.dirname(os.path.abspath(__file__))}/models/speech_fsmn_vad_zh-cn-16k-common-pytorch",
-        spk_model=f"{os.path.dirname(os.path.abspath(__file__))}/models/speech_campplus_sv_zh-cn_16k-common",
+        model="paraformer-zh",model_revision="v2.0.4",
+        vad_model="fsmn-vad",vad_model_revision="v2.0.4",
+        punc_model="ct-punc-c",punc_model_revision="v2.0.4",
+        spk_model="cam++",spk_model_revision="v2.0.2",
         disable_update=True,
+        use_itn=True,
         device="cuda" if torch.cuda.is_available() else "cpu",
         ffmpeg_path=FFMPEG_PATH,
         ncpu=cpu_cores
-    )
+        )
 
+    print(f"CPU_CORES={cpu_cores}")
     print(f"Starting worker with {MAX_WORKERS} concurrent tasks...")
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         while True:
@@ -273,5 +263,11 @@ def run(
 
 if __name__ == "__main__":
     import torch
+
+    if os.environ.get("MODELSCOPE_CACHE") is None:
+        print("请设置环境变量MODELSCOPE_CACHE=/path/to/cache/directory")
+        sys.exit(1)
+    
+    print(f"MODELSCOPE_CACHE = {os.environ.get("MODELSCOPE_CACHE")}")
 
     app()
