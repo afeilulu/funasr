@@ -17,13 +17,13 @@ from contextlib import asynccontextmanager
 from consul_service import register_service, deregister_service
 from dotenv import load_dotenv
 
+service_port = 8000
+service_name = "funasr-api-server"
 
 # Lifespan events for FastAPI
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Register with Consul
-    service_port = 8000
-    service_name = "funasr-api-server"
     register_service(service_name, service_port)
 
     yield
@@ -252,4 +252,4 @@ async def analyze(task_id: str):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=service_port)
