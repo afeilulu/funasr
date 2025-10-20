@@ -113,7 +113,7 @@ def process_audio(key: str, file_path: str, model):
             speech = []
 
             # 获取URL内容
-            contents = get_urls_content(urls, timeout=10, max_concurrent=len(urls))
+            contents = get_urls_content(urls, timeout=3000, max_concurrent=len(urls))
 
             # 打印结果
             for url, content in zip(urls, contents):
@@ -197,10 +197,10 @@ def start_worker():
     """启动工作进程"""
     print("Initializing ASR model...")
     # model = AutoModel(
-    #     model=f"{MODEL_DIR}/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
-    #     punc_model=f"{MODEL_DIR}/punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
-    #     vad_model=f"{MODEL_DIR}/speech_fsmn_vad_zh-cn-16k-common-pytorch",
-    #     spk_model=f"{MODEL_DIR}/speech_campplus_sv_zh-cn_16k-common",
+    #     model=f"{MODEL_DIR}/models/iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+    #     punc_model=f"{MODEL_DIR}/models/iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
+    #     vad_model=f"{MODEL_DIR}/models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
+    #     spk_model=f"{MODEL_DIR}/models/iic/speech_campplus_sv_zh-cn_16k-common",
     #     disable_update=True,
     #     device="cuda" if torch.cuda.is_available() else "cpu",
     #     ffmpeg_path=FFMPEG_PATH,

@@ -1,6 +1,7 @@
 import operator
 import os
 import time
+import sys
 from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.encoders import jsonable_encoder
@@ -46,7 +47,8 @@ app = FastAPI(
 # signal.signal(signal.SIGTERM, handle_shutdown)
 
 # 音频文件存储目录
-AUDIO_DIR = "audio"
+# AUDIO_DIR = "audio"
+AUDIO_DIR = "/root/audio_cache" if sys.platform.startswith('linux') else "D:\\funasr\\audio_cache"
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
 # Redis客户端
@@ -175,9 +177,9 @@ async def recognize_audio(request: AudioRecognitionRequest):
     }
 
     key = f"funasr:{task_id}:{appointment_id}"
-    redis_client.hmset(key, task_data)
+    await redis_client.hmset(key, task_data)
     if request.parse is True:
-        redis_client.lpush("asr_tasks", key)
+        await redis_client.lpush("asr_tasks", key)
 
     return TaskResponse(task_id=key, message="Task submitted successfully")
 
