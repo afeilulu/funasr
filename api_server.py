@@ -17,7 +17,11 @@ from contextlib import asynccontextmanager
 from consul_service import register_service, deregister_service
 from dotenv import load_dotenv
 
-service_port = 8000
+# 加载.env文件中的环境变量
+load_dotenv()
+
+# 生产必须是8000端口
+service_port = os.getenv("SERVICE_PORT", 18000)
 service_name = "funasr-api-server"
 
 # Lifespan events for FastAPI
@@ -44,9 +48,6 @@ app = FastAPI(
 # 音频文件存储目录
 AUDIO_DIR = "audio"
 os.makedirs(AUDIO_DIR, exist_ok=True)
-
-# 加载.env文件中的环境变量
-load_dotenv()
 
 # Redis客户端
 REDIS_HOST = os.getenv("REDIS_HOST", "192.168.5.5")

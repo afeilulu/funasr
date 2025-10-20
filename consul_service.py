@@ -1,10 +1,15 @@
 import consul
 import socket
 # import sys
+import os
+from dotenv import load_dotenv
 
-consul_host = '192.168.5.127'
-consul_port = 32591
-consul_token = 'fff17c8b-0ce2-4fe5-aab2-1cfae02febca'
+# 加载.env文件中的环境变量
+load_dotenv()
+
+consul_host = os.getenv("CONSUL_HOST", "192.168.5.127")
+consul_port = os.getenv("CONSUL_PORT", 32591)
+consul_token = os.getenv("CONSUL_TOKEN", "fff17c8b-0ce2-4fe5-aab2-1cfae02febca")
 
 # Global variables to store service information
 service_id = None
@@ -12,6 +17,9 @@ consul_client = None
 
 # Get current IP address
 def get_local_ip():
+    if consul_host.startswith("124"):
+        return "192.168.0.219"
+    
     try:
         hostname = socket.gethostname()
         IPAddr = socket.gethostbyname(hostname)
@@ -19,12 +27,14 @@ def get_local_ip():
         print("Your Computer IP Address is:" + IPAddr)
         return IPAddr
     except Exception:
-        return '127.0.0.1'
+        return "127.0.0.1"
 
 # Register service with Consul
 def register_service(service_name, port):
     global service_id, consul_client
     
+    print("Consul Host is:" + consul_host)
+
     # Connect to Consul agent
     consul_client = consul.Consul(host=consul_host, port=consul_port, token=consul_token)
     
