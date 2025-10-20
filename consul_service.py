@@ -32,8 +32,9 @@ def get_local_ip():
 # Register service with Consul
 def register_service(service_name, port):
     global service_id, consul_client
-    
-    print("Consul Host is:" + consul_host)
+
+    if (port == 8000):
+        port = 48000
 
     # Connect to Consul agent
     consul_client = consul.Consul(host=consul_host, port=consul_port, token=consul_token)

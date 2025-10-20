@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 生产必须是8000端口
-service_port = os.getenv("SERVICE_PORT", 18000)
+service_port = int(os.getenv("SERVICE_PORT", 18000))
 service_name = "funasr-api-server"
 
 # Lifespan events for FastAPI
