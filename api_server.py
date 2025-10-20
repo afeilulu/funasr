@@ -177,7 +177,7 @@ async def recognize_audio(request: AudioRecognitionRequest):
     }
 
     key = f"funasr:{task_id}:{appointment_id}"
-    await redis_client.hmset(key, task_data)
+    await redis_client.hset(key, mapping=task_data) # 必须写mapping=
     if request.parse is True:
         await redis_client.lpush("asr_tasks", key)
 
