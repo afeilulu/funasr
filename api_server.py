@@ -25,6 +25,7 @@ load_dotenv()
 service_port = int(os.getenv("SERVICE_PORT", 18000))
 service_name = "funasr-api-server"
 
+
 # Lifespan events for FastAPI
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -48,7 +49,11 @@ app = FastAPI(
 
 # 音频文件存储目录
 # AUDIO_DIR = "audio"
-AUDIO_DIR = "/root/audio_cache" if sys.platform.startswith('linux') else "D:\\funasr\\audio_cache"
+AUDIO_DIR = (
+    "/root/audio_cache"
+    if sys.platform.startswith("linux")
+    else "D:\\funasr\\audio_cache"
+)
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
 # Redis客户端
@@ -177,7 +182,7 @@ async def recognize_audio(request: AudioRecognitionRequest):
     }
 
     key = f"funasr:{task_id}:{appointment_id}"
-    await redis_client.hset(key, mapping=task_data) # 必须写mapping=
+    await redis_client.hset(key, mapping=task_data)  # 必须写mapping=
     if request.parse is True:
         await redis_client.lpush("asr_tasks", key)
 
@@ -219,7 +224,7 @@ async def get_task(task_id: str, appointment_id: str):
 
     return TaskStatus(
         task_id=task_id,
-        appointment_id=appointment_id,
+        appointment_id=int(appointment_id),
         files=task_data.get("files"),
         status=task_data.get("status", "unknown"),
         speech=task_data.get("speech"),
@@ -246,9 +251,9 @@ async def analyze(task_id: str):
     key = f"ana:{task_id}"
 
     # 更新任务状态为排队中
-    redis_client.hset(key, "status", "pending")
-    redis_client.hset(key, "timestamp", int(time.time()))
-    redis_client.lpush("asr_tasks", key)
+    await redis_client.hset(key, "status", "pending")
+    await redis_client.hset(key, "timestamp", str(time.time()))
+    await redis_client.lpush("asr_tasks", key)
     return TaskResponse(task_id=key, message="Task submitted successfully")
 
 

@@ -18,7 +18,11 @@ app = typer.Typer()
 load_dotenv()
 
 # 配置
-MODEL_DIR = "/root/model_cache" if sys.platform.startswith('linux') else "D:\\funasr\\model_cache"
+MODEL_DIR = (
+    "/root/model_cache"
+    if sys.platform.startswith("linux")
+    else "D:\\funasr\\model_cache"
+)
 MAX_WORKERS = 100  # 最大并发处理数量
 cpu_cores = os.cpu_count()
 
@@ -28,7 +32,7 @@ os.environ["MODELSCOPE_CACHE"] = MODEL_DIR
 
 # ffmpeg配置
 # FFMPEG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ffmpeg.exe")
-FFMPEG_PATH = "/usr/bin/ffmpeg" if sys.platform.startswith('linux') else "./ffmpeg.exe"
+FFMPEG_PATH = "/usr/bin/ffmpeg" if sys.platform.startswith("linux") else "./ffmpeg.exe"
 
 # 模型热词
 hotword = read_and_join_file("./hotword")
@@ -45,6 +49,7 @@ redis_client = redis.Redis(
     decode_responses=True,
     password=REDIS_PASS,
 )
+
 
 def download_model():
     """下载模型"""
@@ -70,7 +75,7 @@ def download_model():
             use_itn=True,
             device="cuda" if torch.cuda.is_available() else "cpu",
             ffmpeg_path=FFMPEG_PATH,
-            ncpu=cpu_cores
+            ncpu=cpu_cores,
         )
         return True
     except Exception as e:
@@ -156,7 +161,7 @@ def analyze(task_id: str):
             sub_task_data = redis_client.hgetall(sub_key)
             if sub_task_data:
                 speech_text = sub_task_data.get("speech")
-                speech_list = json.loads(speech_text)
+                speech_list = json.loads(str(speech_text))
                 all_speech.extend(speech_list)
 
         if len(all_speech) == 0:
@@ -172,20 +177,22 @@ def analyze(task_id: str):
             key,
             json.dumps(all_speech, ensure_ascii=False),
         )
-        print(json_data_ana)
-        ana_str = json_data_ana["data"]["outputs"]["text"]
-        print(ana_str)
-        text_result = parse_dify_any(ana_str)
+        if json_data_ana:
+            ana_str = json_data_ana["data"]["outputs"]["text"]
+            print(ana_str)
+            text_result = parse_dify_any(ana_str)
 
-        # 更新分析结果
-        redis_client.hmset(
-            key,
-            {
-                "status": "completed",
-                "result": json.dumps(text_result, ensure_ascii=False),
-            },
-        )
-        return True
+            # 更新分析结果
+            redis_client.hmset(
+                key,
+                {
+                    "status": "completed",
+                    "result": json.dumps(text_result, ensure_ascii=False),
+                },
+            )
+            return True
+
+        return False
     except Exception as e:
         print(f"Error processing analyze {key}: {str(e)}")
         res = {"status": "failed", "result": str(e)}
@@ -207,23 +214,27 @@ def start_worker():
     #     ncpu=cpu_cores
     # )
     model = AutoModel(
-        model="paraformer-zh",model_revision="v2.0.4",
-        vad_model="fsmn-vad",vad_model_revision="v2.0.4",
-        punc_model="ct-punc-c",punc_model_revision="v2.0.4",
-        spk_model="cam++",spk_model_revision="v2.0.2",
+        model="paraformer-zh",
+        model_revision="v2.0.4",
+        vad_model="fsmn-vad",
+        vad_model_revision="v2.0.4",
+        punc_model="ct-punc-c",
+        punc_model_revision="v2.0.4",
+        spk_model="cam++",
+        spk_model_revision="v2.0.2",
         disable_update=True,
         use_itn=True,
         device="cuda" if torch.cuda.is_available() else "cpu",
         ffmpeg_path=FFMPEG_PATH,
-        ncpu=cpu_cores
-        )
+        ncpu=cpu_cores,
+    )
 
     print(f"CPU_CORES={cpu_cores}")
     print(f"Starting worker with {MAX_WORKERS} concurrent tasks...")
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         while True:
             # 从队列中获取任务
-            task = redis_client.brpop("asr_tasks", timeout=1)
+            task = redis_client.brpop(["asr_tasks"], timeout=1)
             if task is None:
                 continue
 
@@ -267,7 +278,7 @@ if __name__ == "__main__":
     if os.environ.get("MODELSCOPE_CACHE") is None:
         print("请设置环境变量MODELSCOPE_CACHE=/path/to/cache/directory")
         sys.exit(1)
-    
-    print(f"MODELSCOPE_CACHE = {os.environ.get("MODELSCOPE_CACHE")}")
+
+    print(f"MODELSCOPE_CACHE = {os.environ.get('MODELSCOPE_CACHE')}")
 
     app()
