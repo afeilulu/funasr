@@ -18,3 +18,15 @@ dependencies = [
     "typer>=0.17.4",
     "uvicorn>=0.35.0",
 ]
+
+
+[tool.pyright]
+# typeCheckingMode = "strict"
+reportMissingImports = "error"
+reportUnusedVariable = "warning"
+exclude = [
+    "**/node_modules",
+    "**/venv"
+]
+venvPath = "."
+venv = ".venv"
