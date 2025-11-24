@@ -3,6 +3,7 @@ import typer
 import redis
 import json
 import sys
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from funasr import AutoModel
 from dify import dify_post, parse_dify_any
@@ -11,6 +12,9 @@ from dotenv import load_dotenv
 
 from parallel import get_urls_content
 # from funasr.utils.postprocess_utils import rich_transcription_postprocess
+
+logger = logging.getLogger()
+logger.setLevel(logging.WARNING)
 
 app = typer.Typer()
 
@@ -25,6 +29,9 @@ MODEL_DIR = (
 )
 MAX_WORKERS = 100  # 最大并发处理数量
 cpu_cores = os.cpu_count()
+
+logger.warn(f"CPU_CORES={cpu_cores}")
+logger.warn(f"Starting worker with {MAX_WORKERS} concurrent tasks...")
 
 # 设置模型缓存路径
 # os.environ["MODELSCOPE_CACHE"] = os.path.dirname(os.path.abspath(__file__))
@@ -229,8 +236,8 @@ def start_worker():
         ncpu=cpu_cores,
     )
 
-    print(f"CPU_CORES={cpu_cores}")
-    print(f"Starting worker with {MAX_WORKERS} concurrent tasks...")
+    #    print(f"CPU_CORES={cpu_cores}")
+    #    print(f"Starting worker with {MAX_WORKERS} concurrent tasks...")
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         while True:
             # 从队列中获取任务
