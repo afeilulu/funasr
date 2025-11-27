@@ -252,7 +252,7 @@ async def analyze(task_id: str):
 
     # 更新任务状态为排队中
     await redis_client.hset(key, "status", "pending")
-    await redis_client.hset(key, "timestamp", str(time.time()))
+    await redis_client.hset(key, "timestamp", int(time.time()))
     await redis_client.lpush("asr_tasks", key)
     return TaskResponse(task_id=key, message="Task submitted successfully")
 
