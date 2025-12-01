@@ -7,7 +7,7 @@
 import sys
 import json
 
-from typing import List
+from typing import List, Optional
 
 from alibabacloud_qualitycheck20190115.client import (
     Client as Qualitycheck20190115Client,
@@ -21,6 +21,8 @@ from alibabacloud_tea_util.client import Client as UtilClient
 # from redis import client
 from pydantic import BaseModel
 
+scaCallbackUrl = "https://gateway.platform.xbt.sx.cn/funasr-api-server/sca/callback"
+
 
 class CallListItem(BaseModel):
     voiceFileUrl: str
@@ -33,6 +35,15 @@ class UploadAudioDataRequestJson(BaseModel):
     serviceChannelKeywords: list[str]
     callbackUrl: str
     callList: list[CallListItem]
+
+
+class GetResultRequestJson(BaseModel):
+    pageNumber: int
+    pageSize: int
+    excludeFields: list
+    sortType: str  # desc/asc
+    taskId: Optional[str] = None
+    remark1: Optional[str] = None
 
 
 class GetResultToReviewRequestJson(BaseModel):
@@ -59,18 +70,19 @@ class Sample:
         return Qualitycheck20190115Client(config)
 
     @staticmethod
-    def uploadAudio():
+    def uploadAudio(url: str, fileName: str, remark1: str):
         client = Sample.create_client()
-        callListItem = CallListItem(
-            voiceFileUrl="https://xbt-platform-public-1301716714.cos.ap-chengdu.myqcloud.com/fd6e48d9-a25d-41da-b9e7-0a7d4a29119e",
-            fileName="a123456.wav",
-            remark1="123456",
-        )
+        # callListItem = CallListItem(
+        #    voiceFileUrl="https://xbt-platform-public-1301716714.cos.ap-chengdu.myqcloud.com/fd6e48d9-a25d-41da-b9e7-0a7d4a29119e",
+        #    fileName="a123456.wav",
+        #    remark1="123456",
+        # )
+        item = CallListItem(voiceFileUrl=url, fileName=fileName, remark1=remark1)
         request = UploadAudioDataRequestJson(
             autoSplit=1,
             serviceChannelKeywords=["给您", "给你", "请坐"],
-            callbackUrl="https://gateway.platform.xbt.sx.cn/funasr-api-server/sca/callback",
-            callList=[callListItem],
+            callbackUrl=scaCallbackUrl,
+            callList=[item],
         )
         uploadAudioDataRequest = qualitycheck_20190115_models.UploadAudioDataRequest(
             # json_str='{"autoSplit":1,"serviceChannelKeywords":["给您","给你"],"callbackUrl":"https://gateway.platform.xbt.sx.cn/funasr-api-server/sca/callback","callList":[{"voiceFileUrl":"https://xbt-platform-public-1301716714.cos.ap-chengdu.myqcloud.com/fd6e48d9-a25d-41da-b9e7-0a7d4a29119e","fileName":"a123456.wav","remark1":"123456"}]}'
@@ -86,19 +98,39 @@ class Sample:
             print(error)
 
     @staticmethod
-    def getResult():
+    def getResult(taskId=None, remark1=None):
         client = Sample.create_client()
-        getResultRequest = qualitycheck_20190115_models.GetResultRequest(json_str="")
+        request = GetResultRequestJson(
+            pageNumber=1,
+            pageSize=10,
+            excludeFields=[
+                "Agent",
+                "AsrResult",
+                "HitResult",
+                "HitScore",
+                "Recording",
+                "SchemeIdList",
+                "SchemeNameList",
+            ],
+            sortType="asc",
+            taskId=taskId,
+            remark1=remark1,
+        )
+        # request = qualitycheck_20190115_models.GetResultRequest(json_str="")
         try:
             # 复制代码运行请自行打印 API 的返回值
-            response = client.get_result(getResultRequest)
+            response = client.get_result(
+                qualitycheck_20190115_models.GetResultRequest(
+                    json_str=json.dumps(request, ensure_ascii=False)
+                )
+            )
             print(response.body.to_map())
             return response.body
         except Exception as error:
             print(error)
 
     @staticmethod
-    def GetResultToReview(taskId: str, fileId: str):
+    def getResultToReview(taskId: str, fileId: str):
         client = Sample.create_client()
         try:
             request = GetResultToReviewRequestJson(taskId=taskId, fileId=fileId)
@@ -109,6 +141,7 @@ class Sample:
                 )
             )
             print(response.body.to_map())
+            return response.body
         except Exception as error:
             print(error)
 
@@ -128,10 +161,7 @@ class Sample:
         except Exception as error:
             # 此处仅做打印展示，请谨慎对待异常处理，在工程项目中切勿直接忽略异常。
             # 错误 message
-            print(error.message)
-            # 诊断地址
-            print(error.data.get("Recommend"))
-            UtilClient.assert_as_string(error.message)
+            print(error)
 
     @staticmethod
     async def main_async(

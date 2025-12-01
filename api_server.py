@@ -2,7 +2,8 @@ import operator
 import os
 import time
 import sys
-from typing import Optional
+import sca
+from typing import Awaitable, Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
@@ -257,6 +258,9 @@ async def analyze(task_id: str):
     return TaskResponse(task_id=key, message="Task submitted successfully")
 
 
+# sca #####################################################################################
+
+
 @app.get("/sca/callback")
 async def sca_call_back(request: Request):
     # http://aliyun.com/callback?taskId=xxx&timestamp=xxx&aliUid=xxx&signature=xxx&event=xxx
@@ -266,6 +270,76 @@ async def sca_call_back(request: Request):
     print(params.get("aliUid"))
     print(params.get("signature"))
     print(params.get("event"))
+
+
+class ScaUploadRequest(BaseModel):
+    voiceFileUrl: str
+    fileName: str
+    patientId: str
+
+
+@app.post("/sca/upload")
+async def sca_upload(request: ScaUploadRequest):
+    resp = sca.Sample.uploadAudio(
+        request.voiceFileUrl, request.fileName, request.patientId
+    )
+
+    if resp is not None:
+        # resp.data = taskId
+        key = f"sca:{request.patientId}:{resp.data}"
+        redis_client.hset(key, "url", request.voiceFileUrl)
+        redis_client.hset(key, "fileName", request.fileName)
+        redis_client.hset(key, "taskId", resp.data)
+        redis_client.hset(key, "timestamp", str(int(time.time())))
+
+    return resp
+
+
+class ScaTaskIdsResponse(BaseModel):
+    url: str | None
+    fileName: str | None
+    taskId: str | None
+    vid: str | None
+    timestamp: str | None
+
+
+@app.get("/sca/taskIds")
+async def sca_taskIds(patientId: str):
+    resp = []
+    fuzzy_key = f"sca:{patientId}:*"
+    keys = await redis_client.keys(fuzzy_key)
+    if keys:
+        for key in keys:
+            raw = await redis_client.hgetall(key)
+            if raw:
+                resp.extend(
+                    ScaTaskIdsResponse(
+                        url=raw.get("url"),
+                        fileName=raw.get("fileName"),
+                        taskId=raw.get("taskId"),
+                        vid=raw.get("vid"),
+                        timestamp=raw.get("timestamp"),
+                    )
+                )
+
+    return resp
+
+
+@app.get("/sca/getResult")
+async def sca_get_result(patientId: str, taskId: str):
+    resp = sca.Sample.getResult(taskId, patientId)
+
+    if resp is not None:
+        for info in resp.data.result_info:
+            key = f"sca:{patientId}:{info.task_id}"
+            redis_client.hset(key, "vid", info.vid)
+
+    return resp
+
+
+@app.get("/sca/getResultToView")
+async def sca_get_result_to_view(taskId: str, vid: str):
+    return sca.Sample.getResultToReview(taskId, vid)
 
 
 if __name__ == "__main__":
