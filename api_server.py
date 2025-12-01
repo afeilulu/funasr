@@ -3,7 +3,7 @@ import os
 import time
 import sys
 from typing import Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 import aiofiles
@@ -255,6 +255,17 @@ async def analyze(task_id: str):
     await redis_client.hset(key, "timestamp", int(time.time()))
     await redis_client.lpush("asr_tasks", key)
     return TaskResponse(task_id=key, message="Task submitted successfully")
+
+
+@app.get("/sca/callback")
+async def sca_call_back(request: Request):
+    # http://aliyun.com/callback?taskId=xxx&timestamp=xxx&aliUid=xxx&signature=xxx&event=xxx
+    params = dict(request.query_params)
+    print(params.get("taskId"))
+    print(params.get("timestamp"))
+    print(params.get("aliUid"))
+    print(params.get("signature"))
+    print(params.get("event"))
 
 
 if __name__ == "__main__":
