@@ -355,6 +355,14 @@ async def sca_get_result_to_view(taskId: str, vid: str):
 
 
 if __name__ == "__main__":
+    if os.environ.get("ALIBABA_CLOUD_ACCESS_KEY_ID") is None:
+        print("请设置环境变量ALIBABA_CLOUD_ACCESS_KEY_ID")
+        sys.exit(1)
+
+    if os.environ.get("ALIBABA_CLOUD_ACCESS_KEY_SECRET") is None:
+        print("请设置环境变量ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+        sys.exit(1)
+
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=service_port)
