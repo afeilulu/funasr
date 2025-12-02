@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 env_file = ".env.dev"
 if len(sys.argv) > 1:
     env = sys.argv[1]
-    env_file = f".env.${env}"
+    env_file = f".env.{env}"
 
 # 加载.env文件中的环境变量
 load_dotenv(dotenv_path=env_file)
