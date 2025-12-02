@@ -40,6 +40,10 @@ def get_local_ip():
 def register_service(service_name, port):
     global service_id, consul_client
 
+    # 内网映射
+    if port == 8000:
+        port = 48000
+
     # Connect to Consul agent
     consul_client = consul.Consul(
         host=consul_host, port=consul_port, token=consul_token
