@@ -3,7 +3,7 @@ import os
 import time
 import sys
 import sca
-from typing import Awaitable, Optional
+from typing import Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
@@ -19,11 +19,16 @@ from contextlib import asynccontextmanager
 from consul_service import register_service, deregister_service
 from dotenv import load_dotenv
 
+env_file = ".env.dev"
+if len(sys.argv) > 1:
+    env = sys.argv[1]
+    env_file = f".env.${env}"
+
 # 加载.env文件中的环境变量
-load_dotenv()
+load_dotenv(dotenv_path=env_file)
 
 # 生产必须是8000端口
-service_port = int(os.getenv("SERVICE_PORT", 18000))
+service_port = int(os.getenv("SERVICE_PORT", 8000))
 service_name = "funasr-api-server"
 
 
@@ -265,6 +270,7 @@ async def analyze(task_id: str):
 async def sca_call_back(request: Request):
     # http://aliyun.com/callback?taskId=xxx&timestamp=xxx&aliUid=xxx&signature=xxx&event=xxx
     params = dict(request.query_params)
+    print("/sca/callback")
     print(params.get("taskId"))
     print(params.get("timestamp"))
     print(params.get("aliUid"))
@@ -287,10 +293,10 @@ async def sca_upload(request: ScaUploadRequest):
     if resp is not None:
         # resp.data = taskId
         key = f"sca:{request.patientId}:{resp.data}"
-        redis_client.hset(key, "url", request.voiceFileUrl)
-        redis_client.hset(key, "fileName", request.fileName)
-        redis_client.hset(key, "taskId", resp.data)
-        redis_client.hset(key, "timestamp", str(int(time.time())))
+        await redis_client.hset(key, "url", request.voiceFileUrl)
+        await redis_client.hset(key, "fileName", request.fileName)
+        await redis_client.hset(key, "taskId", resp.data)
+        await redis_client.hset(key, "timestamp", str(int(time.time())))
 
     return resp
 
@@ -304,7 +310,7 @@ class ScaTaskIdsResponse(BaseModel):
 
 
 @app.get("/sca/taskIds")
-async def sca_taskIds(patientId: str):
+async def sca_taskIds(patientId: str) -> list[ScaTaskIdsResponse]:
     resp = []
     fuzzy_key = f"sca:{patientId}:*"
     keys = await redis_client.keys(fuzzy_key)
@@ -312,7 +318,7 @@ async def sca_taskIds(patientId: str):
         for key in keys:
             raw = await redis_client.hgetall(key)
             if raw:
-                resp.extend(
+                resp.append(
                     ScaTaskIdsResponse(
                         url=raw.get("url"),
                         fileName=raw.get("fileName"),
@@ -332,14 +338,20 @@ async def sca_get_result(patientId: str, taskId: str):
     if resp is not None:
         for info in resp.data.result_info:
             key = f"sca:{patientId}:{info.task_id}"
-            redis_client.hset(key, "vid", info.vid)
+            await redis_client.hset(key, "vid", info.vid)
+    else:
+        raise HTTPException(status_code=404, detail="Item not found")
 
     return resp
 
 
 @app.get("/sca/getResultToView")
 async def sca_get_result_to_view(taskId: str, vid: str):
-    return sca.Sample.getResultToReview(taskId, vid)
+    resp = sca.Sample.getResultToReview(taskId, vid)
+    if resp is None:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    return resp
 
 
 if __name__ == "__main__":

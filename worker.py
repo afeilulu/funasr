@@ -8,18 +8,24 @@ from concurrent.futures import ThreadPoolExecutor
 from funasr import AutoModel
 from dify import dify_post, parse_dify_any
 from common import merge_consecutive_items, read_and_join_file, split_and_save_json_list
+from parallel import get_urls_content
+
+# from funasr.utils.postprocess_utils import rich_transcription_postprocess
 from dotenv import load_dotenv
 
-from parallel import get_urls_content
-# from funasr.utils.postprocess_utils import rich_transcription_postprocess
+env_file = ".env.dev"
+if len(sys.argv) > 1:
+    env = sys.argv[1]
+    env_file = f".env.${env}"
+
+# 加载.env文件中的环境变量
+load_dotenv(dotenv_path=env_file)
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.WARNING)
 
 app = typer.Typer()
-
-# 加载.env文件中的环境变量
-load_dotenv()
 
 # 配置
 MODEL_DIR = (
@@ -30,8 +36,8 @@ MODEL_DIR = (
 MAX_WORKERS = 100  # 最大并发处理数量
 cpu_cores = os.cpu_count()
 
-logger.warn(f"CPU_CORES={cpu_cores}")
-logger.warn(f"Starting worker with {MAX_WORKERS} concurrent tasks...")
+logger.warning(f"CPU_CORES={cpu_cores}")
+logger.warning(f"Starting worker with {MAX_WORKERS} concurrent tasks...")
 
 # 设置模型缓存路径
 # os.environ["MODELSCOPE_CACHE"] = os.path.dirname(os.path.abspath(__file__))

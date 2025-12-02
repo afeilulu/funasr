@@ -3,9 +3,16 @@ from dashscope.audio.asr import Transcription
 import dashscope
 import os
 import json
+import sys
 from dotenv import load_dotenv
 
-load_dotenv()
+env_file = ".env.dev"
+if len(sys.argv) > 1:
+    env = sys.argv[1]
+    env_file = f".env.${env}"
+
+# 加载.env文件中的环境变量
+load_dotenv(dotenv_path=env_file)
 
 # 若没有配置环境变量，请用百炼API Key将下行替换为：dashscope.api_key = "sk-xxx"
 dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")

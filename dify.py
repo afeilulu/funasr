@@ -67,4 +67,3 @@ def parse_dify_any(outputs):
     except json.JSONDecodeError as e:
         print(f"解析chatContent中的JSON时出错: {e}")
         return None
-

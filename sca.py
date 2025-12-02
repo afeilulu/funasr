@@ -3,7 +3,7 @@
 # pip install alibabacloud_qualitycheck20190115==8.4.1
 # pip install alibabacloud_credentials
 #
-# import os
+import os
 import sys
 import json
 
@@ -16,12 +16,21 @@ from alibabacloud_credentials.client import Client as CredentialClient
 from alibabacloud_tea_openapi import models as open_api_models
 from alibabacloud_qualitycheck20190115 import models as qualitycheck_20190115_models
 from alibabacloud_tea_util import models as util_models
-from alibabacloud_tea_util.client import Client as UtilClient
+# from alibabacloud_tea_util.client import Client as UtilClient
 
 # from redis import client
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
-scaCallbackUrl = "https://gateway.platform.xbt.sx.cn/funasr-api-server/sca/callback"
+env_file = ".env.dev"
+if len(sys.argv) > 1:
+    env = sys.argv[1]
+    env_file = f".env.${env}"
+
+# 加载.env文件中的环境变量
+load_dotenv(dotenv_path=env_file)
+
+scaCallbackUrl = os.getenv("SCA_CALLBACK", "https://123.com/callback")
 
 
 class CallListItem(BaseModel):
@@ -86,7 +95,7 @@ class Sample:
         )
         uploadAudioDataRequest = qualitycheck_20190115_models.UploadAudioDataRequest(
             # json_str='{"autoSplit":1,"serviceChannelKeywords":["给您","给你"],"callbackUrl":"https://gateway.platform.xbt.sx.cn/funasr-api-server/sca/callback","callList":[{"voiceFileUrl":"https://xbt-platform-public-1301716714.cos.ap-chengdu.myqcloud.com/fd6e48d9-a25d-41da-b9e7-0a7d4a29119e","fileName":"a123456.wav","remark1":"123456"}]}'
-            json_str=json.dumps(request, ensure_ascii=False)
+            json_str=json.dumps(request.model_dump(), ensure_ascii=False)
         )
         try:
             # 复制代码运行请自行打印 API 的返回值
@@ -121,7 +130,7 @@ class Sample:
             # 复制代码运行请自行打印 API 的返回值
             response = client.get_result(
                 qualitycheck_20190115_models.GetResultRequest(
-                    json_str=json.dumps(request, ensure_ascii=False)
+                    json_str=json.dumps(request.model_dump(), ensure_ascii=False)
                 )
             )
             print(response.body.to_map())
@@ -137,7 +146,7 @@ class Sample:
             response = client.get_result_to_review(
                 qualitycheck_20190115_models.GetResultToReviewRequest(
                     # json_str='{"taskId":"20251127-5458D5C7-0ED6-5C47-A51E-56110213189B","fileId":"61bd6a84118b4612843665fdd1783085"}'
-                    json_str=json.dumps(request, ensure_ascii=False)
+                    json_str=json.dumps(request.model_dump(), ensure_ascii=False)
                 )
             )
             print(response.body.to_map())
@@ -181,10 +190,7 @@ class Sample:
         except Exception as error:
             # 此处仅做打印展示，请谨慎对待异常处理，在工程项目中切勿直接忽略异常。
             # 错误 message
-            print(error.message)
-            # 诊断地址
-            print(error.data.get("Recommend"))
-            UtilClient.assert_as_string(error.message)
+            print(error)
 
 
 if __name__ == "__main__":
