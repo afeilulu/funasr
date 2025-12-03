@@ -158,16 +158,16 @@ async def recognize_audio(request: AudioRecognitionRequest):
         for file in request.files:
             file_path = file.url
             timestamp = file.timestamp
-            if is_valid_url(file_path):
-                # 处理URL
-                file_name = (
-                    os.path.basename(urlparse(file_path).path) or f"{task_id}.audio"
-                )
-                save_path = os.path.join(AUDIO_DIR, file_name)
-                await download_file(file_path, save_path)
-                file_path = save_path
-            elif not os.path.isfile(file_path):
-                raise HTTPException(status_code=400, detail="File not found")
+            # if is_valid_url(file_path):
+            #    # 处理URL
+            #    file_name = (
+            #        os.path.basename(urlparse(file_path).path) or f"{task_id}.audio"
+            #    )
+            #    save_path = os.path.join(AUDIO_DIR, file_name)
+            #    await download_file(file_path, save_path)
+            #    file_path = save_path
+            # elif not os.path.isfile(file_path):
+            #    raise HTTPException(status_code=400, detail="File not found")
 
             f.write(f"{timestamp} {file_path}\n")
             f.flush()
@@ -177,20 +177,29 @@ async def recognize_audio(request: AudioRecognitionRequest):
         status = "pending"
 
     # 将任务添加到Redis队列
-    task_data = {
-        "task_id": task_id,
-        "appointment_id": appointment_id,
-        "files": json.dumps(jsonable_encoder(request.files), ensure_ascii=False),
-        "scp_file": output_file,
-        "status": status,
-        "timestamp": int(time.time()),
-        "check_in_time": request.check_in_time,
-    }
-
     key = f"funasr:{task_id}:{appointment_id}"
-    await redis_client.hset(key, mapping=task_data)  # 必须写mapping=
+    task_data = await redis_client.hgetall(key)  # type: ignore
+    
+    if not task_data:
+        task_data = {
+            "task_id": task_id,
+            "appointment_id": appointment_id,
+            "files": json.dumps(jsonable_encoder(request.files), ensure_ascii=False),
+            "scp_file": output_file,
+            "status": status,
+            "timestamp": int(time.time()),
+            "check_in_time": request.check_in_time,
+        }
+        await redis_client.hset(key, mapping=task_data)  # type: ignore # 必须写mapping=
+    else:
+        files = json.loads(task_data["files"])
+        files.extend(request.files)
+        await redis_client.hset(key, "files", json.dumps(jsonable_encoder(files), ensure_ascii=False))  # type: ignore
+        await redis_client.hset(key, "scp_file", output_file)  # type: ignore
+        await redis_client.hset(key, "status", status)  # type: ignore
+
     if request.parse is True:
-        await redis_client.lpush("asr_tasks", key)
+        await redis_client.lpush("asr_tasks", key)  # type: ignore
 
     return TaskResponse(task_id=key, message="Task submitted successfully")
 

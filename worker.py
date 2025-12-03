@@ -1,4 +1,5 @@
 import os
+from urllib.request import urlopen
 import typer
 import redis
 import json
@@ -9,6 +10,9 @@ from funasr import AutoModel
 from dify import dify_post, parse_dify_any
 from common import merge_consecutive_items, read_and_join_file, split_and_save_json_list
 from parallel import get_urls_content
+from dashscope.audio.asr import Transcription
+import dashscope
+from http import HTTPStatus
 
 # from funasr.utils.postprocess_utils import rich_transcription_postprocess
 from dotenv import load_dotenv
@@ -18,6 +22,7 @@ env_file = ".env.dev"
 # 加载.env文件中的环境变量
 load_dotenv(dotenv_path=env_file)
 
+dashscope.api_key = os.getenv("DASHSCOPE_API_KEY")
 
 logger = logging.getLogger()
 logger.setLevel(logging.WARNING)
@@ -98,23 +103,72 @@ def process_audio(key: str, file_path: str, model):
     try:
         # 更新任务状态为处理中
         redis_client.hset(key, "status", "processing")
+        print(file_path)
 
         # 执行语音识别
-        result = model.generate(
-            input=file_path,
-            hotword=hotword,
-            batch_size_s=300,
+        # 本地识别,file_path是scp文件############################################
+        # result = model.generate(
+        #    input=file_path,
+        #    hotword=hotword,
+        #    batch_size_s=300,
+        # )
+        ## text = rich_transcription_postprocess(result[0]["text"])
+        ## print(text)
+        ## text_result = text
+        #######################################################################
+
+        # dashboard识别,file_path是url
+        result = []
+        task_response = Transcription.async_call(
+            model="fun-asr",
+            file_urls=[file_path],
+            diarization_enabled=True,
+            speaker_count=2,
         )
-        # text = rich_transcription_postprocess(result[0]["text"])
-        # print(text)
-        # text_result = text
+        transcribe_response = Transcription.wait(task=task_response.output.task_id)
+        if transcribe_response.status_code == HTTPStatus.OK:
+            output = transcribe_response.output
+            print(json.dumps(output, indent=4, ensure_ascii=False))
+            if output["results"][0]["subtask_status"] == "SUCCEEDED":
+                result_url = output["results"][0]["transcription_url"]
+                print(result_url)
+                response = urlopen(result_url)
+                data_bytes = response.read()
+                data_string = data_bytes.decode("utf-8")
+                json_data = json.loads(data_string)
+                print(json_data)
+                sentence_info = []
+                for sentence in json_data["transcripts"][0]["sentences"]:
+                    sentence_info.append(
+                        {
+                            "text": sentence["text"],
+                            "start": sentence["begin_time"],
+                            "end": sentence["end_time"],
+                            "spk": sentence["speaker_id"],
+                        }
+                    )
+                result.append({"sentence_info": sentence_info})
+            else:
+                redis_client.hmset(
+                    key, {"status": "failed", "result": output["results"][0]["message"]}
+                )
+                return False
+        else:
+            print(transcribe_response)
+            redis_client.hmset(
+                key, {"status": "failed", "result": transcribe_response.message}
+            )
+            return False
 
         messages = []
         for stage in result:
             # speech_list = stage["sentence_info"]
             # for item in speech_list:
             #     del item["timestamp"]
-            speech_list = merge_consecutive_items(stage["sentence_info"])
+            # speech_list = merge_consecutive_items(stage["sentence_info"])
+            speech_list = stage["sentence_info"]
+            for s in speech_list:
+                print(s["text"])
 
             # file_name = f"{key}.json".replace(':',"_")
             # file_path = save_file(speech_list, file_name, output_dir="results")
@@ -146,7 +200,11 @@ def process_audio(key: str, file_path: str, model):
         # 更新任务对话解析结果
         redis_client.hmset(
             key,
-            {"status": "completed", "speech": json.dumps(messages, ensure_ascii=False)},
+            {
+                "status": "completed",
+                "result": "success",
+                "speech": json.dumps(messages, ensure_ascii=False),
+            },
         )
 
         return True
@@ -249,6 +307,7 @@ def start_worker():
                 continue
 
             key = task[1]  # brpop returns tuple (queue_name, value)
+            print(key)
             task_data = redis_client.hgetall(key)
 
             if not task_data:
@@ -260,7 +319,16 @@ def start_worker():
                 task_id = key[4:].strip()
                 executor.submit(analyze, task_id)
             else:
-                executor.submit(process_audio, key, task_data["scp_file"], model)
+                # 本地识别
+                # executor.submit(process_audio, key, task_data["scp_file"], model)
+                # url识别
+                files = json.loads(task_data["files"])  # type: ignore
+                values = [item["timestamp"] for item in files]
+                max_value = max(values)
+                max_index = values.index(max_value)
+                max_file_url = files[max_index]["url"]
+                print(max_file_url)
+                executor.submit(process_audio, key, max_file_url, model)  # type: ignore
 
 
 @app.command()
