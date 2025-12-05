@@ -193,7 +193,7 @@ async def get_task_list(task_id: str):
             )
         )
 
-    sorted_res = sorted(res, key=operator.attrgetter("check_in_time"), reverse=True)
+    sorted_res = sorted(res, key=operator.attrgetter("timestamp"), reverse=True)
     return sorted_res
 
 

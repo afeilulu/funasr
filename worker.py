@@ -106,7 +106,7 @@ def process_audio(key: str, file_path: str, model):
         print(file_path)
 
         # 执行语音识别
-        # 本地识别,file_path是scp文件############################################
+        # 本地识别#############################################################
         # result = model.generate(
         #    input=file_path,
         #    hotword=hotword,
@@ -160,7 +160,7 @@ def process_audio(key: str, file_path: str, model):
             )
             return False
 
-        messages = []
+        speech = []
         for stage in result:
             # speech_list = stage["sentence_info"]
             # for item in speech_list:
@@ -177,8 +177,6 @@ def process_audio(key: str, file_path: str, model):
                 speech_list, base_filename=base_filename, output_dir="results"
             )
 
-            speech = []
-
             # 获取URL内容
             contents = get_urls_content(urls, timeout=3000, max_concurrent=len(urls))
 
@@ -192,16 +190,13 @@ def process_audio(key: str, file_path: str, model):
                 else:
                     print(f"{url} -> 请求失败")
 
-            if speech:
-                messages.append(speech)
-
         # 更新任务对话解析结果
         redis_client.hmset(
             key,
             {
                 "status": "completed",
                 "result": "success",
-                "speech": json.dumps(messages, ensure_ascii=False),
+                "speech": json.dumps(speech, ensure_ascii=False),
             },
         )
 
