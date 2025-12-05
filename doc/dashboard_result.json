@@ -1,0 +1,26 @@
+{
+    "file_url": "https://xbt-platform-public-1301716714.cos.ap-chengdu.myqcloud.com/fd6e48d9-a25d-41da-b9e7-0a7d4a29119e",
+    "properties": {"audio_format": "pcm_s16le", "channels": [0], "original_sampling_rate": 16000, "original_duration_in_milliseconds": 292000},
+    "transcripts": [
+        {
+            "channel_id": 0,
+            "content_duration_in_milliseconds": 210200,
+            "text": "就是他，嗯，好的。......",
+            "sentences": [
+                {
+                    "begin_time": 5980,
+                    "end_time": 7580,
+                    "text": "就是他，嗯，好的。",
+                    "sentence_id": 1,
+                    "speaker_id": 1,
+                    "words": [
+                        {"begin_time": 5980, "end_time": 6220, "text": "就是", "punctuation": ""},
+                        {"begin_time": 6220, "end_time": 6340, "text": "他", "punctuation": "，"},
+                        {"begin_time": 6700, "end_time": 6780, "text": "嗯", "punctuation": "，"},
+                        {"begin_time": 7020, "end_time": 7580, "text": "好的", "punctuation": "。"}
+                    ]
+                }
+            ]
+        }
+    ]
+}

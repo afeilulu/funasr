@@ -8,7 +8,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from funasr import AutoModel
 from dify import dify_post, parse_dify_any
-from common import merge_consecutive_items, read_and_join_file, split_and_save_json_list
+from common import read_and_join_file, split_and_save_json_list
 from parallel import get_urls_content
 from dashscope.audio.asr import Transcription
 import dashscope
@@ -99,7 +99,7 @@ def download_model():
 
 
 def process_audio(key: str, file_path: str, model):
-    """处理scp文件"""
+    """处理单个url音频文件"""
     try:
         # 更新任务状态为处理中
         redis_client.hset(key, "status", "processing")
@@ -167,8 +167,6 @@ def process_audio(key: str, file_path: str, model):
             #     del item["timestamp"]
             # speech_list = merge_consecutive_items(stage["sentence_info"])
             speech_list = stage["sentence_info"]
-            for s in speech_list:
-                print(s["text"])
 
             # file_name = f"{key}.json".replace(':',"_")
             # file_path = save_file(speech_list, file_name, output_dir="results")
@@ -224,11 +222,11 @@ def analyze(task_id: str):
         fuzzy_key = f"funasr:{task_id}:*"
         keys = redis_client.keys(fuzzy_key)
         all_speech = []
-        for sub_key in keys:
+        for sub_key in keys:  # type: ignore
             print(sub_key)
             sub_task_data = redis_client.hgetall(sub_key)
             if sub_task_data:
-                speech_text = sub_task_data.get("speech")
+                speech_text = sub_task_data.get("speech")  # type:ignore
                 speech_list = json.loads(str(speech_text))
                 all_speech.extend(speech_list)
 
@@ -306,7 +304,7 @@ def start_worker():
             if task is None:
                 continue
 
-            key = task[1]  # brpop returns tuple (queue_name, value)
+            key = task[1]  # type:ignore  # brpop returns tuple (queue_name, value)
             print(key)
             task_data = redis_client.hgetall(key)
 
@@ -322,13 +320,9 @@ def start_worker():
                 # 本地识别
                 # executor.submit(process_audio, key, task_data["scp_file"], model)
                 # url识别
-                files = json.loads(task_data["files"])  # type: ignore
-                values = [item["timestamp"] for item in files]
-                max_value = max(values)
-                max_index = values.index(max_value)
-                max_file_url = files[max_index]["url"]
-                print(max_file_url)
-                executor.submit(process_audio, key, max_file_url, model)  # type: ignore
+                file = task_data["file"]  # type:ignore
+                if file:
+                    executor.submit(process_audio, key, file, model)  # type: ignore
 
 
 @app.command()

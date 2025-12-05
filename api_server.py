@@ -5,13 +5,11 @@ import sys
 import sca
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 import aiofiles
 
 from redis import asyncio as aioredis
 import requests
-import json
 from urllib.parse import urlparse
 from contextlib import asynccontextmanager
 
@@ -82,9 +80,9 @@ class FileUrl(BaseModel):
 
 
 class AudioRecognitionRequest(BaseModel):
-    customer_id: int  # patientId
+    patient_id: int
     appointment_id: int
-    files: list[FileUrl]
+    file: str
     parse: bool
     check_in_time: int
 
@@ -98,7 +96,7 @@ class TaskStatus(BaseModel):
     task_id: str
     status: str
     appointment_id: Optional[int] = None
-    files: Optional[str] = None
+    file: Optional[str] = None
     speech: Optional[str] = None
     timestamp: Optional[int] = None
     check_in_time: Optional[int] = None
@@ -149,54 +147,23 @@ async def root():
 @app.post("/recognize", response_model=TaskResponse)
 async def recognize_audio(request: AudioRecognitionRequest):
     # task_id = str(uuid.uuid4())
-    task_id = str(request.customer_id)
+    task_id = str(request.patient_id)
+    timestamp = int(time.time())
     appointment_id = str(request.appointment_id)
-    output_file_name = f"{task_id}_{appointment_id}.scp"
-    output_file = os.path.join(AUDIO_DIR, output_file_name)
 
-    with open(output_file, "w") as f:
-        for file in request.files:
-            file_path = file.url
-            timestamp = file.timestamp
-            # if is_valid_url(file_path):
-            #    # 处理URL
-            #    file_name = (
-            #        os.path.basename(urlparse(file_path).path) or f"{task_id}.audio"
-            #    )
-            #    save_path = os.path.join(AUDIO_DIR, file_name)
-            #    await download_file(file_path, save_path)
-            #    file_path = save_path
-            # elif not os.path.isfile(file_path):
-            #    raise HTTPException(status_code=400, detail="File not found")
-
-            f.write(f"{timestamp} {file_path}\n")
-            f.flush()
-
-    status = "idle"
-    if request.parse is True:
-        status = "pending"
+    status = "pending"
 
     # 将任务添加到Redis队列
-    key = f"funasr:{task_id}:{appointment_id}"
-    task_data = await redis_client.hgetall(key)  # type: ignore
-    
-    if not task_data:
-        task_data = {
-            "task_id": task_id,
-            "appointment_id": appointment_id,
-            "files": json.dumps(jsonable_encoder(request.files), ensure_ascii=False),
-            "scp_file": output_file,
-            "status": status,
-            "timestamp": int(time.time()),
-            "check_in_time": request.check_in_time,
-        }
-        await redis_client.hset(key, mapping=task_data)  # type: ignore # 必须写mapping=
-    else:
-        files = json.loads(task_data["files"])
-        files.extend(request.files)
-        await redis_client.hset(key, "files", json.dumps(jsonable_encoder(files), ensure_ascii=False))  # type: ignore
-        await redis_client.hset(key, "scp_file", output_file)  # type: ignore
-        await redis_client.hset(key, "status", status)  # type: ignore
+    key = f"funasr:{task_id}:{timestamp}"
+    task_data = {
+        "patient_id": task_id,
+        "appointment_id": appointment_id,
+        "file": request.file,
+        "status": status,
+        "timestamp": int(time.time()),
+        "check_in_time": request.check_in_time,
+    }
+    await redis_client.hset(key, mapping=task_data)  # type: ignore # 必须写mapping=
 
     if request.parse is True:
         await redis_client.lpush("asr_tasks", key)  # type: ignore
@@ -213,12 +180,12 @@ async def get_task_list(task_id: str):
 
     res = []
     for key in keys:
-        task_data = await redis_client.hgetall(key)
+        task_data = await redis_client.hgetall(key)  # type: ignore
         res.append(
             TaskStatus(
                 task_id=task_id,
                 appointment_id=task_data.get("appointment_id"),
-                files=task_data.get("files"),
+                file=task_data.get("file"),
                 status=task_data.get("status", "unknown"),
                 speech=task_data.get("speech"),
                 timestamp=task_data.get("timestamp"),
@@ -230,17 +197,17 @@ async def get_task_list(task_id: str):
     return sorted_res
 
 
-@app.get("/status/{task_id}/{appointment_id}", response_model=TaskStatus)
-async def get_task(task_id: str, appointment_id: str):
-    key = f"funasr:{task_id}:{appointment_id}"
-    task_data = await redis_client.hgetall(key)
+@app.get("/status/{task_id}/{timestamp}", response_model=TaskStatus)
+async def get_task(task_id: str, timestamp: str):
+    key = f"funasr:{task_id}:{timestamp}"
+    task_data = await redis_client.hgetall(key)  # type: ignore
     if not task_data:
         raise HTTPException(status_code=404, detail="Task not found")
 
     return TaskStatus(
         task_id=task_id,
-        appointment_id=int(appointment_id),
-        files=task_data.get("files"),
+        appointment_id=task_data.get("appointment_id"),
+        file=task_data.get("file"),
         status=task_data.get("status", "unknown"),
         speech=task_data.get("speech"),
         timestamp=task_data.get("timestamp"),
@@ -250,7 +217,7 @@ async def get_task(task_id: str, appointment_id: str):
 @app.get("/getAnalyzeStatus/{task_id}", response_model=AnalyzeStatus)
 async def get_analyze_status(task_id: str):
     key = f"ana:{task_id}"
-    task_data = await redis_client.hgetall(key)
+    task_data = await redis_client.hgetall(key)  # type: ignore
     if not task_data:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -266,9 +233,9 @@ async def analyze(task_id: str):
     key = f"ana:{task_id}"
 
     # 更新任务状态为排队中
-    await redis_client.hset(key, "status", "pending")
-    await redis_client.hset(key, "timestamp", int(time.time()))
-    await redis_client.lpush("asr_tasks", key)
+    await redis_client.hset(key, "status", "pending")  # type: ignore
+    await redis_client.hset(key, "timestamp", int(time.time()))  # type: ignore
+    await redis_client.lpush("asr_tasks", key)  # type:ignore
     return TaskResponse(task_id=key, message="Task submitted successfully")
 
 
@@ -302,10 +269,10 @@ async def sca_upload(request: ScaUploadRequest):
     if resp is not None:
         # resp.data = taskId
         key = f"sca:{request.patientId}:{resp.data}"
-        await redis_client.hset(key, "url", request.voiceFileUrl)
-        await redis_client.hset(key, "fileName", request.fileName)
-        await redis_client.hset(key, "taskId", resp.data)
-        await redis_client.hset(key, "timestamp", str(int(time.time())))
+        await redis_client.hset(key, "url", request.voiceFileUrl)  # type:ignore
+        await redis_client.hset(key, "fileName", request.fileName)  # type: ignore
+        await redis_client.hset(key, "taskId", resp.data)  # type:ignore
+        await redis_client.hset(key, "timestamp", str(int(time.time())))  # type:ignore
 
     return resp
 
@@ -325,7 +292,7 @@ async def sca_taskIds(patientId: str) -> list[ScaTaskIdsResponse]:
     keys = await redis_client.keys(fuzzy_key)
     if keys:
         for key in keys:
-            raw = await redis_client.hgetall(key)
+            raw = await redis_client.hgetall(key)  # type:ignore
             if raw:
                 resp.append(
                     ScaTaskIdsResponse(
@@ -347,7 +314,7 @@ async def sca_get_result(patientId: str, taskId: str):
     if resp is not None:
         for info in resp.data.result_info:
             key = f"sca:{patientId}:{info.task_id}"
-            await redis_client.hset(key, "vid", info.vid)
+            await redis_client.hset(key, "vid", info.vid)  # type:ignore
     else:
         raise HTTPException(status_code=404, detail="Item not found")
 
